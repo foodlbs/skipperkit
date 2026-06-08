@@ -63,6 +63,15 @@ class AppConfigTest {
     }
 
     @Test
+    fun `prime next-episode is supported via dynamic prefix`() {
+        assertTrue(DefaultConfigs.PRIME.nextEpisodeLabelPrefixes.contains("Next up:"))
+        // The prefix matcher is only active when auto-next is on.
+        val targets = DefaultConfigs.PRIME.copy(autoNextEnabled = true).activeMatchers()
+        val nextMatcher = targets.first { it.target == SkipTarget.NEXT_EPISODE }
+        assertTrue(nextMatcher.labelPrefixes.contains("Next up:"))
+    }
+
+    @Test
     fun `prime never targets the ad upsell button`() {
         val allPrimeViewIds = DefaultConfigs.PRIME.run {
             skipIntroViewIds + skipRecapViewIds + nextEpisodeViewIds

@@ -91,8 +91,10 @@ object SettingsRepository {
             enabled = toggles.enabled,
             skipIntroViewIds = if (toggles.skipIntro) base.skipIntroViewIds else emptyList(),
             skipIntroLabels = if (toggles.skipIntro) base.skipIntroLabels else emptyList(),
+            skipIntroLabelPrefixes = if (toggles.skipIntro) base.skipIntroLabelPrefixes else emptyList(),
             skipRecapViewIds = if (toggles.skipRecap) base.skipRecapViewIds else emptyList(),
             skipRecapLabels = if (toggles.skipRecap) base.skipRecapLabels else emptyList(),
+            skipRecapLabelPrefixes = if (toggles.skipRecap) base.skipRecapLabelPrefixes else emptyList(),
             autoNextEnabled = toggles.autoNext,
         )
     }

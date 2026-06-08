@@ -20,10 +20,13 @@ android {
         debug {
             // Phase 2 uses this flag to gate the verbose node-tree inspector.
             buildConfigField("boolean", "DEBUG_NODE_INSPECTOR", "true")
+            // Prototype: log-only heuristic discovery on config misses.
+            buildConfigField("boolean", "DISCOVERY_ENGINE", "true")
         }
         release {
             isMinifyEnabled = false
             buildConfigField("boolean", "DEBUG_NODE_INSPECTOR", "false")
+            buildConfigField("boolean", "DISCOVERY_ENGINE", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

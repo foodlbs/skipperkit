@@ -10,12 +10,22 @@ package com.skipperkit.matching
  */
 object NodeMatcher {
 
-    fun matches(node: NodeView, viewIds: List<String>, labels: List<String>): Boolean {
+    fun matches(
+        node: NodeView,
+        viewIds: List<String>,
+        labels: List<String>,
+        labelPrefixes: List<String> = emptyList(),
+    ): Boolean {
         val viewId = node.viewId
         if (!viewId.isNullOrEmpty() && viewIds.any { it == viewId }) return true
 
         if (labelMatches(node.text, labels)) return true
         if (labelMatches(node.contentDescription, labels)) return true
+
+        // Prefix matching handles dynamic text where the meaningful part is fixed
+        // but a variable suffix follows (e.g. Prime's "Next up: <show title>").
+        if (prefixMatches(node.text, labelPrefixes)) return true
+        if (prefixMatches(node.contentDescription, labelPrefixes)) return true
 
         return false
     }
@@ -24,5 +34,11 @@ object NodeMatcher {
         val trimmed = value?.trim()
         if (trimmed.isNullOrEmpty()) return false
         return labels.any { it.equals(trimmed, ignoreCase = true) }
+    }
+
+    private fun prefixMatches(value: String?, prefixes: List<String>): Boolean {
+        val trimmed = value?.trim()
+        if (trimmed.isNullOrEmpty()) return false
+        return prefixes.any { it.isNotEmpty() && trimmed.startsWith(it, ignoreCase = true) }
     }
 }

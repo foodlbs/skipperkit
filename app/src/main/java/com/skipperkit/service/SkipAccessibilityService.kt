@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.skipperkit.BuildConfig
+import com.skipperkit.discovery.DiscoveryEngine
 import com.skipperkit.matching.Point
 import com.skipperkit.matching.SkipEngine
 import com.skipperkit.settings.SettingsRepository
@@ -33,6 +34,9 @@ class SkipAccessibilityService : AccessibilityService() {
     private var workerHandler: Handler? = null
 
     private var inspector: NodeInspector? = null
+
+    @Volatile
+    private var lastDiscoveryUptimeMs = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -67,8 +71,9 @@ class SkipAccessibilityService : AccessibilityService() {
             null
         } ?: return
 
+        val view = AccessibilityNodeView(root)
         val result = try {
-            engine.onTree(packageName, AccessibilityNodeView(root), config)
+            engine.onTree(packageName, view, config)
         } catch (t: Throwable) {
             // The tree can be invalidated mid-walk while the player animates.
             Log.w(TAG, "Engine pass aborted (node invalidated)", t)
@@ -82,7 +87,35 @@ class SkipAccessibilityService : AccessibilityService() {
                 Log.i(TAG, "No clickable ancestor for ${result.target}; tapping via gesture")
                 dispatchTap(result.point)
             }
+            is SkipEngine.Result.NoMatch -> maybeRunDiscovery(packageName, view)
             else -> Unit
+        }
+    }
+
+    /**
+     * Prototype discovery tier: when the configured matchers find nothing, run the
+     * heuristic [DiscoveryEngine] and LOG what it would propose. It never clicks —
+     * this is diagnostic only, gated by the [BuildConfig.DISCOVERY_ENGINE] flag and
+     * throttled so it can't run on the hot path.
+     */
+    private fun maybeRunDiscovery(packageName: String, root: AccessibilityNodeView) {
+        if (!BuildConfig.DISCOVERY_ENGINE) return
+        val now = SystemClock.uptimeMillis()
+        if (now - lastDiscoveryUptimeMs < DISCOVERY_INTERVAL_MS) return
+        lastDiscoveryUptimeMs = now
+
+        val candidates = try {
+            DiscoveryEngine.discover(root)
+        } catch (t: Throwable) {
+            return
+        }
+        if (candidates.isEmpty()) return
+        Log.d(DISCOVERY_TAG, "Candidates in $packageName (proposal only, not clicked):")
+        candidates.forEach { c ->
+            Log.d(
+                DISCOVERY_TAG,
+                "  ${c.target} text=\"${c.text}\" viewId=${c.viewId} clickable=${c.hasClickableTarget}",
+            )
         }
     }
 
@@ -118,9 +151,13 @@ class SkipAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "SkipperKit"
+        private const val DISCOVERY_TAG = "SkipperKitDiscovery"
 
         /** A short stroke registers as a single tap. */
         private const val TAP_DURATION_MS = 50L
+
+        /** Discovery is diagnostic; throttle hard so it never loads the hot path. */
+        private const val DISCOVERY_INTERVAL_MS = 5000L
 
         val SUPPORTED_PACKAGES: Set<String> = setOf(
             "com.netflix.mediaclient",
