@@ -6,6 +6,7 @@ import com.skipperkit.config.ConfigRepository
 import com.skipperkit.config.RemoteConfigParser
 import com.skipperkit.config.RemoteConfigSync
 import com.skipperkit.data.SettingsStore
+import com.skipperkit.discovery.DiscoveryRepository
 import com.skipperkit.settings.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +36,18 @@ class SkipperApp : Application() {
             runCatching {
                 SettingsRepository.restore(store.loadUserSettings(SettingsRepository.snapshotDefaults()))
             }.onFailure { Log.w(TAG, "Could not load saved settings", it) }
+
+            // 1b. Restore discovery decisions and persist future ones.
+            runCatching {
+                val (approved, dismissed) = store.loadDiscovered()
+                DiscoveryRepository.restore(approved, dismissed)
+            }.onFailure { Log.w(TAG, "Could not load discovery state", it) }
+            DiscoveryRepository.onApprovedChanged = { entries ->
+                scope.launch { runCatching { store.saveApprovedDiscovered(entries) } }
+            }
+            DiscoveryRepository.onDismissedChanged = { keys ->
+                scope.launch { runCatching { store.saveDismissedDiscovered(keys) } }
+            }
 
             // 2. Apply cached remote config, if any.
             runCatching { store.cachedRemoteConfigJson() }.getOrNull()?.let { cached ->

@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.skipperkit.config.ConfigRepository
+import com.skipperkit.discovery.DiscoveryRepository
 import com.skipperkit.service.ServiceRuntime
 import com.skipperkit.service.SkipAccessibilityService
 import com.skipperkit.settings.SettingsRepository
@@ -27,6 +28,7 @@ import com.skipperkit.ui.settings.ServiceStatus
 import com.skipperkit.ui.settings.SettingsUiState
 import com.skipperkit.ui.settings.SkipperKitSettingsScreen
 import com.skipperkit.ui.settings.SkipperKitTheme
+import com.skipperkit.ui.settings.SuggestionUi
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,6 +53,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     val baseConfigs by ConfigRepository.configs.collectAsState()
     val running by ServiceRuntime.running.collectAsState()
     val lastActivityMs by ServiceRuntime.lastActivityMs.collectAsState()
+    val pendingSuggestions by DiscoveryRepository.pending.collectAsState()
 
     // Whether the service is enabled in system Accessibility settings can change
     // while we're backgrounded (the user toggles it there), so refresh on RESUME.
@@ -85,6 +88,15 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         )
     }
 
+    val suggestions = pendingSuggestions.map { e ->
+        SuggestionUi(
+            key = e.key,
+            appName = displayNameFor(e.packageName),
+            label = e.displayLabel,
+            detail = e.viewId ?: e.label.orEmpty(),
+        )
+    }
+
     val state = SettingsUiState(
         masterEnabled = userSettings.masterEnabled,
         service = ServiceStatus(
@@ -94,6 +106,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
             healthy = healthy,
         ),
         apps = apps,
+        suggestions = suggestions,
     )
 
     SkipperKitSettingsScreen(
@@ -102,6 +115,8 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         onAppEnabledToggle = SettingsRepository::setAppEnabled,
         onFeatureToggle = SettingsRepository::setFeature,
         onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+        onApproveSuggestion = DiscoveryRepository::approve,
+        onDismissSuggestion = DiscoveryRepository::dismiss,
     )
 }
 

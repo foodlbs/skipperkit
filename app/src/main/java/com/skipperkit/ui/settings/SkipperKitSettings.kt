@@ -28,12 +28,14 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -92,10 +94,19 @@ data class AppUiState(
     val autoNextSupported: Boolean = true, // false where the app exposes no usable next id (Prime)
 )
 
+/** A skip button SkipperKit discovered that isn't configured yet, awaiting approval. */
+data class SuggestionUi(
+    val key: String,
+    val appName: String,
+    val label: String,   // "Skip Intro"
+    val detail: String,  // what was matched, e.g. a view-id or visible text
+)
+
 data class SettingsUiState(
     val masterEnabled: Boolean,
     val service: ServiceStatus,
     val apps: List<AppUiState>,
+    val suggestions: List<SuggestionUi> = emptyList(),
 )
 
 /* Feature keys used by onFeatureToggle. */
@@ -232,6 +243,8 @@ fun SkipperKitSettingsScreen(
     onFeatureToggle: (packageName: String, feature: String, Boolean) -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     modifier: Modifier = Modifier,
+    onApproveSuggestion: (String) -> Unit = {},
+    onDismissSuggestion: (String) -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier,
@@ -268,6 +281,17 @@ fun SkipperKitSettingsScreen(
                 )
             }
 
+            if (state.suggestions.isNotEmpty()) {
+                item("suggestions-label") { SectionLabel("Suggestions") }
+                items(state.suggestions, key = { "sug-${it.key}" }) { suggestion ->
+                    SuggestionCard(
+                        suggestion = suggestion,
+                        onApprove = { onApproveSuggestion(suggestion.key) },
+                        onDismiss = { onDismissSuggestion(suggestion.key) },
+                    )
+                }
+            }
+
             item("section") {
                 SectionLabel("Streaming apps")
             }
@@ -296,6 +320,50 @@ private fun SectionLabel(text: String) {
         letterSpacing = 0.8.sp,
         modifier = Modifier.padding(start = 6.dp, top = 4.dp),
     )
+}
+
+/* ── Discovery suggestion card ─────────────────────────────────────────── */
+
+@Composable
+private fun SuggestionCard(
+    suggestion: SuggestionUi,
+    onApprove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = cs.surfaceContainerHigh),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(18.dp)) {
+            Text(
+                "Found a “${suggestion.label}” button in ${suggestion.appName}",
+                color = cs.onSurface,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 20.sp,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Not in your config yet. Start using it?",
+                color = cs.onSurfaceVariant,
+                fontSize = 12.5.sp,
+            )
+            Text(
+                suggestion.detail,
+                color = cs.onSurfaceVariant,
+                fontSize = 11.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(onClick = onApprove) { Text("Use it") }
+                OutlinedButton(onClick = onDismiss) { Text("Dismiss") }
+            }
+        }
+    }
 }
 
 /* ── Status card — the most prominent element. Three visual states. ─────── */
