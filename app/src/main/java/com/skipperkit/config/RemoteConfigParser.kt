@@ -47,6 +47,9 @@ object RemoteConfigParser {
                     nextEpisodeLabels = o.stringList("nextEpisodeLabels"),
                     enabled = o.optBoolean("enabled", true),
                     autoNextEnabled = o.optBoolean("autoNextEnabled", false),
+                    skipIntroLabelPrefixes = o.stringList("skipIntroLabelPrefixes"),
+                    skipRecapLabelPrefixes = o.stringList("skipRecapLabelPrefixes"),
+                    nextEpisodeLabelPrefixes = o.stringList("nextEpisodeLabelPrefixes"),
                 ),
             )
         }

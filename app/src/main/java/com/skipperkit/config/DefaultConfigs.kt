@@ -42,13 +42,13 @@ object DefaultConfigs {
             "test_tag:contextualButton_Overlay:contextualButton_Panel:contextualButton_skip_recap_Button",
         ),
         skipRecapLabels = listOf("Skip Recap"),
-        // Prime's "Next up" card's clickable container has no view-id; it's only
-        // identifiable by the dynamic child text "Next up: <title>", which needs
-        // prefix matching (not yet supported). Auto-next for Prime stays off
-        // until a dedicated auto-next phase. Empty lists never match, so this is
-        // inert even if autoNextEnabled were flipped on.
+        // Prime's "Next up" card's clickable container has no view-id and no
+        // static label — only the dynamic child text "Next up: <title>". Prefix
+        // matching targets that text node; the ancestor walk then clicks the card
+        // container. Auto-next stays OFF by default but is now supported.
         nextEpisodeViewIds = emptyList(),
         nextEpisodeLabels = emptyList(),
+        nextEpisodeLabelPrefixes = listOf("Next up:"),
         enabled = true,
         autoNextEnabled = false,
     )

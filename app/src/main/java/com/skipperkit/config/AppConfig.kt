@@ -8,6 +8,7 @@ data class Matcher(
     val target: SkipTarget,
     val viewIds: List<String>,
     val labels: List<String>,
+    val labelPrefixes: List<String> = emptyList(),
 )
 
 /**
@@ -26,6 +27,11 @@ data class AppConfig(
     val nextEpisodeLabels: List<String>,
     val enabled: Boolean,
     val autoNextEnabled: Boolean,
+    // Optional prefix matchers for dynamic text (e.g. Prime "Next up: <title>").
+    // Default empty so existing configs/tests are unaffected.
+    val skipIntroLabelPrefixes: List<String> = emptyList(),
+    val skipRecapLabelPrefixes: List<String> = emptyList(),
+    val nextEpisodeLabelPrefixes: List<String> = emptyList(),
 ) {
     /**
      * Search order: skip buttons first, then next-episode (only when auto-next
@@ -34,10 +40,10 @@ data class AppConfig(
      * wins and we just click the skip button.
      */
     fun activeMatchers(): List<Matcher> = buildList {
-        add(Matcher(SkipTarget.SKIP_INTRO, skipIntroViewIds, skipIntroLabels))
-        add(Matcher(SkipTarget.SKIP_RECAP, skipRecapViewIds, skipRecapLabels))
+        add(Matcher(SkipTarget.SKIP_INTRO, skipIntroViewIds, skipIntroLabels, skipIntroLabelPrefixes))
+        add(Matcher(SkipTarget.SKIP_RECAP, skipRecapViewIds, skipRecapLabels, skipRecapLabelPrefixes))
         if (autoNextEnabled) {
-            add(Matcher(SkipTarget.NEXT_EPISODE, nextEpisodeViewIds, nextEpisodeLabels))
+            add(Matcher(SkipTarget.NEXT_EPISODE, nextEpisodeViewIds, nextEpisodeLabels, nextEpisodeLabelPrefixes))
         }
     }
 }

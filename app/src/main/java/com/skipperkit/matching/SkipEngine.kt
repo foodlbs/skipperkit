@@ -42,7 +42,8 @@ class SkipEngine(
         if (last != null && now - last < debounceMs) return Result.Debounced
 
         for (matcher in config.activeMatchers()) {
-            val hit = TreeSearch.findFirst(root, matcher.viewIds, matcher.labels) ?: continue
+            val hit = TreeSearch.findFirst(root, matcher.viewIds, matcher.labels, matcher.labelPrefixes)
+                ?: continue
             val clickable = TreeSearch.firstClickableSelfOrAncestor(hit)
             if (clickable != null && clickable.click()) {
                 lastActionUptimeByPackage[packageName] = clock()

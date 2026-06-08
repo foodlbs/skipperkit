@@ -13,21 +13,27 @@ object TreeSearch {
      * the matched node itself (which may be non-clickable text — the caller
      * resolves the clickable target via [firstClickableSelfOrAncestor]).
      */
-    fun findFirst(root: NodeView, viewIds: List<String>, labels: List<String>): NodeView? {
-        return search(root, viewIds, labels, depth = 0)
+    fun findFirst(
+        root: NodeView,
+        viewIds: List<String>,
+        labels: List<String>,
+        labelPrefixes: List<String> = emptyList(),
+    ): NodeView? {
+        return search(root, viewIds, labels, labelPrefixes, depth = 0)
     }
 
     private fun search(
         node: NodeView,
         viewIds: List<String>,
         labels: List<String>,
+        labelPrefixes: List<String>,
         depth: Int,
     ): NodeView? {
-        if (NodeMatcher.matches(node, viewIds, labels)) return node
+        if (NodeMatcher.matches(node, viewIds, labels, labelPrefixes)) return node
         if (depth >= MAX_DEPTH) return null
         for (i in 0 until node.childCount) {
             val child = node.childAt(i) ?: continue
-            val hit = search(child, viewIds, labels, depth + 1)
+            val hit = search(child, viewIds, labels, labelPrefixes, depth + 1)
             if (hit != null) return hit
         }
         return null

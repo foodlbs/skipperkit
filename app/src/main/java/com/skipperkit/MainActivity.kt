@@ -71,7 +71,9 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
 
     val apps = baseConfigs.map { base ->
         val toggles = userSettings.apps[base.packageName]
-        val autoNextSupported = base.nextEpisodeViewIds.isNotEmpty() || base.nextEpisodeLabels.isNotEmpty()
+        val autoNextSupported = base.nextEpisodeViewIds.isNotEmpty() ||
+            base.nextEpisodeLabels.isNotEmpty() ||
+            base.nextEpisodeLabelPrefixes.isNotEmpty()
         AppUiState(
             packageName = base.packageName,
             displayName = displayNameFor(base.packageName),

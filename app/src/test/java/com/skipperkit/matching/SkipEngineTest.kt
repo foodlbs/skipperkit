@@ -161,6 +161,25 @@ class SkipEngineTest {
     }
 
     @Test
+    fun `auto-next matches the dynamic Prime next-up card by prefix`() {
+        // Prime: clickable card container with no id/label, wrapping dynamic text.
+        val text = FakeNode(text = "Next up: Matka King")
+        val card = FakeNode(isClickable = true, children = listOf(text))
+        val root = FakeNode(children = listOf(card))
+        val primeConfig = config(autoNext = true).copy(
+            nextEpisodeViewIds = emptyList(),
+            nextEpisodeLabels = emptyList(),
+            nextEpisodeLabelPrefixes = listOf("Next up:"),
+        )
+        val engine = SkipEngine(clock = { 5_000L })
+        assertEquals(
+            SkipEngine.Result.Clicked(SkipTarget.NEXT_EPISODE),
+            engine.onTree(pkg, root, primeConfig),
+        )
+        assertTrue(card.clicked)
+    }
+
+    @Test
     fun `auto-next clicks end-card when enabled`() {
         val card = FakeNode(viewId = "NextEpisodeButtonTestTag", isClickable = true,
             children = listOf(FakeNode(text = "Next Episode")))

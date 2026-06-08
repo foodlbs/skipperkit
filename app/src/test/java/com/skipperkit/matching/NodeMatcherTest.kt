@@ -44,4 +44,22 @@ class NodeMatcherTest {
         val node = FakeNode(text = "")
         assertFalse(NodeMatcher.matches(node, emptyList(), emptyList()))
     }
+
+    @Test
+    fun `matches dynamic text by prefix`() {
+        val node = FakeNode(text = "Next up: Matka King")
+        assertTrue(NodeMatcher.matches(node, emptyList(), emptyList(), labelPrefixes = listOf("Next up:")))
+    }
+
+    @Test
+    fun `prefix match is case-insensitive`() {
+        val node = FakeNode(text = "NEXT UP: Jack Ryan")
+        assertTrue(NodeMatcher.matches(node, emptyList(), emptyList(), labelPrefixes = listOf("Next up:")))
+    }
+
+    @Test
+    fun `prefix does not match when text only contains it mid-string`() {
+        val node = FakeNode(text = "See what's Next up: later")
+        assertFalse(NodeMatcher.matches(node, emptyList(), emptyList(), labelPrefixes = listOf("Next up:")))
+    }
 }
