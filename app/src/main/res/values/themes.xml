@@ -1,0 +1,4 @@
+<resources>
+    <!-- Lightweight platform theme used for the window before Compose draws. -->
+    <style name="Theme.SkipperKit" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -1,0 +1,38 @@
+# Built application files
+*.apk
+*.aab
+*.aar
+*.ap_
+*.dex
+*.class
+
+# Build output
+build/
+bin/
+gen/
+out/
+
+# Gradle
+.gradle/
+# (gradle/wrapper/gradle-wrapper.jar IS committed — it's part of the wrapper)
+
+# Kotlin
+.kotlin/
+
+# Local configuration (SDK path, secrets) — machine-specific
+local.properties
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# OS / logs
+.DS_Store
+*.log
+
+# Signing material — never commit
+*.jks
+*.keystore

@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">SkipperKit</string>
+    <string name="accessibility_service_label">SkipperKit Skip Assistant</string>
+    <string name="accessibility_service_description">SkipperKit taps on-screen Skip Intro, Skip Recap, and Next Episode buttons in supported streaming apps using the accessibility node tree. It does not capture the screen, record video, run OCR, or analyze media in any way.</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Scoped to the two supported mobile streaming packages only. The framework
+    filters events to these packages, so the service never wakes for anything
+    else. flagReportViewIds is required for viewIdResourceName to be populated
+    on nodes (the Phase 2 inspector relies on it to evaluate View-ID matching).
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowContentChanged|typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows|flagReportViewIds"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="100"
+    android:packageNames="com.netflix.mediaclient,com.amazon.avod.thirdpartyclient,com.disney.disneyplus"
+    android:settingsActivity="com.skipperkit.MainActivity" />
