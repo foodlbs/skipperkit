@@ -102,7 +102,12 @@ class SkipAccessibilityService : AccessibilityService() {
      * throttled so it can't run on the hot path.
      */
     private fun maybeRunDiscovery(packageName: String, root: AccessibilityNodeView) {
-        if (!BuildConfig.DISCOVERY_ENGINE) return
+        // Suggestions are a user-controlled feature; verbose candidate logging is a
+        // debug-only diagnostic. Run discovery if either is active.
+        val suggest = SettingsRepository.discoverySuggestionsEnabled()
+        val logDiagnostics = BuildConfig.DISCOVERY_ENGINE
+        if (!suggest && !logDiagnostics) return
+
         val now = SystemClock.uptimeMillis()
         if (now - lastDiscoveryUptimeMs < DISCOVERY_INTERVAL_MS) return
         lastDiscoveryUptimeMs = now
@@ -113,15 +118,21 @@ class SkipAccessibilityService : AccessibilityService() {
             return
         }
         if (candidates.isEmpty()) return
-        Log.d(DISCOVERY_TAG, "Candidates in $packageName (proposal only, not clicked):")
+
+        if (logDiagnostics) {
+            Log.d(DISCOVERY_TAG, "Candidates in $packageName (proposal only, not clicked):")
+        }
         candidates.forEach { c ->
-            Log.d(
-                DISCOVERY_TAG,
-                "  ${c.target} text=\"${c.text}\" viewId=${c.viewId} clickable=${c.hasClickableTarget}",
-            )
+            if (logDiagnostics) {
+                Log.d(
+                    DISCOVERY_TAG,
+                    "  ${c.target} text=\"${c.text}\" viewId=${c.viewId} clickable=${c.hasClickableTarget}",
+                )
+            }
             // Only skip controls with a clickable target become user-facing
             // suggestions; next-episode is intentionally never auto-promoted.
-            if (c.hasClickableTarget &&
+            if (suggest &&
+                c.hasClickableTarget &&
                 (c.target == SkipTarget.SKIP_INTRO || c.target == SkipTarget.SKIP_RECAP)
             ) {
                 DiscoveryRepository.propose(

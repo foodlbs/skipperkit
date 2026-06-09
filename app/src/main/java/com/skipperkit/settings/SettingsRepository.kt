@@ -18,6 +18,7 @@ data class AppToggles(
 data class UserSettings(
     val masterEnabled: Boolean,
     val apps: Map<String, AppToggles>,
+    val discoverySuggestions: Boolean = true,
 )
 
 /**
@@ -51,12 +52,19 @@ object SettingsRepository {
                 autoNext = cfg.autoNextEnabled,
             )
         }
-        return UserSettings(masterEnabled = true, apps = apps)
+        return UserSettings(masterEnabled = true, apps = apps, discoverySuggestions = true)
     }
 
     fun setMaster(enabled: Boolean) {
         _settings.value = _settings.value.copy(masterEnabled = enabled)
     }
+
+    fun setDiscoverySuggestions(enabled: Boolean) {
+        _settings.value = _settings.value.copy(discoverySuggestions = enabled)
+    }
+
+    /** Read by the service to decide whether to offer discovery suggestions. */
+    fun discoverySuggestionsEnabled(): Boolean = _settings.value.discoverySuggestions
 
     fun setAppEnabled(packageName: String, enabled: Boolean) =
         update(packageName) { it.copy(enabled = enabled) }

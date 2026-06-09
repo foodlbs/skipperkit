@@ -98,6 +98,32 @@ To sideload an existing APK manually:
 adb install -r app-debug.apk
 ```
 
+### Building a signed release
+
+Release signing reads from a **gitignored** `keystore.properties` at the repo root —
+no keystore or secret is ever committed. Create a keystore and the properties file:
+
+```bash
+keytool -genkey -v -keystore skipperkit-release.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias skipperkit
+```
+
+```properties
+# keystore.properties (do not commit)
+storeFile=skipperkit-release.jks
+storePassword=********
+keyAlias=skipperkit
+keyPassword=********
+```
+
+Then `./gradlew assembleRelease`. If `keystore.properties` is absent (e.g. CI), the
+release APK is simply built unsigned.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs `testDebugUnitTest`, `lintDebug`, and `assembleDebug`
+on every push to `main` and on pull requests.
+
 ---
 
 ## Accessibility setup (required, one time)

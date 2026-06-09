@@ -107,6 +107,7 @@ data class SettingsUiState(
     val service: ServiceStatus,
     val apps: List<AppUiState>,
     val suggestions: List<SuggestionUi> = emptyList(),
+    val discoverySuggestionsEnabled: Boolean = true,
 )
 
 /* Feature keys used by onFeatureToggle. */
@@ -245,6 +246,7 @@ fun SkipperKitSettingsScreen(
     modifier: Modifier = Modifier,
     onApproveSuggestion: (String) -> Unit = {},
     onDismissSuggestion: (String) -> Unit = {},
+    onDiscoveryToggle: (Boolean) -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier,
@@ -304,6 +306,45 @@ fun SkipperKitSettingsScreen(
                     onFeatureToggle = onFeatureToggle,
                 )
             }
+
+            item("general-label") { SectionLabel("General") }
+            item("discovery-toggle") {
+                ToggleRowCard(
+                    title = "Suggest new skip buttons",
+                    subtitle = "Notice skip buttons SkipperKit isn't configured for and offer to use them",
+                    checked = state.discoverySuggestionsEnabled,
+                    onCheckedChange = onDiscoveryToggle,
+                )
+            }
+        }
+    }
+}
+
+/* ── Generic single-toggle settings card ───────────────────────────────── */
+
+@Composable
+private fun ToggleRowCard(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = cs.surfaceContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, color = cs.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(subtitle, color = cs.onSurfaceVariant, fontSize = 12.5.sp, lineHeight = 17.sp)
+            }
+            Spacer(Modifier.width(16.dp))
+            SkipperSwitch(checked = checked, onCheckedChange = onCheckedChange)
         }
     }
 }
