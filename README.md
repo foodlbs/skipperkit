@@ -5,14 +5,16 @@
 ![Platform: Android](https://img.shields.io/badge/Platform-Android%2024%2B-3DDC84.svg)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF.svg)
 
-An Android app that automatically taps **Skip Intro**, **Skip Recap**, and **Next
-Episode** buttons in supported streaming apps — using only the Android
-**Accessibility** APIs. It behaves exactly like a user reaching over and tapping the
-button the app already shows. It never looks at video, never captures the screen,
-and never touches DRM-protected content.
+An Android app that automatically taps buttons you've approved, so you don't have
+to — using only the Android **Accessibility** APIs. Its flagship use is streaming:
+**Skip Intro**, **Skip Recap**, and **Next Episode** in Netflix, Prime Video,
+Disney+, Crunchyroll, HBO Max, Hulu, Paramount+, Peacock, and Apple TV. The same
+teach-and-approve mechanism works for other repetitive buttons in apps you
+explicitly add — and taught apps can be exported and shared as small JSON files.
 
-Supported (mobile only): **Netflix**, **Prime Video**, **Disney+** — plus any app you
-add yourself via *Settings → Add an app*.
+It behaves exactly like a user reaching over and tapping the button the app
+already shows. It never looks at video, never captures the screen, and never
+touches DRM-protected content.
 
 ---
 
@@ -67,14 +69,25 @@ recognition, no ML vision, no root, and no ADB automation.**
 
 ## Supported apps
 
-| Service | Package |
-|---|---|
-| Netflix (mobile) | `com.netflix.mediaclient` |
-| Prime Video (mobile) | `com.amazon.avod.thirdpartyclient` |
-| Disney+ (mobile) | `com.disney.disneyplus` |
+Built-ins come in two tiers. **Verified** apps match on stable view-ids captured
+from a real device. **Label-only** apps match on visible button text — functional,
+but a redesign or a non-English locale can break them until someone captures their
+view-ids (contributions welcome, see [CONTRIBUTING.md](CONTRIBUTING.md)).
+
+| Service | Package | Tier |
+|---|---|---|
+| Netflix | `com.netflix.mediaclient` | ✅ Verified |
+| Prime Video | `com.amazon.avod.thirdpartyclient` | ✅ Verified |
+| Disney+ | `com.disney.disneyplus` | ✅ Verified |
+| Crunchyroll | `com.crunchyroll.crunchyroid` | 🏷️ Label-only |
+| HBO Max | `com.wbd.stream` | 🏷️ Label-only |
+| Hulu | `com.hulu.plus` | 🏷️ Label-only |
+| Paramount+ | `com.cbs.app` | 🏷️ Label-only |
+| Peacock | `com.peacocktv.peacockandroid` | 🏷️ Label-only |
+| Apple TV | `com.apple.atve.androidtv.appletv` | 🏷️ Label-only |
 
 You can also **add other apps** yourself (Settings → *Add an app*). The accessibility
-service only ever observes these three built-ins **plus the apps you explicitly add** —
+service only ever observes the built-ins above **plus the apps you explicitly add** —
 never anything else. Added apps are read the same way (accessibility text only, no
 capture), discovery proposes their skip buttons for you to approve, and you can remove
 any of them at any time.
@@ -89,7 +102,24 @@ SkipperKit targets phone/tablet builds only.
 
 ---
 
-## Build & install
+## Install
+
+### Option 1 — prebuilt APK (recommended)
+
+Download `skipperkit-<version>.apk` from the
+[**Releases**](https://github.com/foodlbs/skipperkit/releases) page (a `.sha256`
+checksum is attached to each release) and sideload it:
+
+```bash
+adb install -r skipperkit-v0.1.0.apk
+# or just open the APK on the phone and confirm the install prompt
+```
+
+> **Why not the Play Store?** Google Play restricts the AccessibilityService API
+> to apps whose core purpose is assisting users with disabilities, so utilities
+> like this one are distributed as direct APKs instead.
+
+### Option 2 — build from source
 
 Requirements: Android Studio (Ladybug+) or a JDK 17–21 and the Android SDK
 (compileSdk 35). Kotlin 2.0, AGP 8.7, Gradle 8.14 (wrapper included).
@@ -128,13 +158,15 @@ keyAlias=skipperkit
 keyPassword=********
 ```
 
-Then `./gradlew assembleRelease`. If `keystore.properties` is absent (e.g. CI), the
+Then `./gradlew assembleRelease`. If `keystore.properties` is absent, the
 release APK is simply built unsigned.
 
-### Continuous integration
+### Continuous integration & releases
 
 `.github/workflows/ci.yml` runs `testDebugUnitTest`, `lintDebug`, and `assembleDebug`
-on every push to `main` and on pull requests.
+on every push to `main` and on pull requests. Pushing a `v*` tag runs
+`.github/workflows/release.yml`, which builds a **signed** APK (keystore supplied via
+repository secrets, never committed) and attaches it to a GitHub Release.
 
 ---
 
@@ -178,10 +210,32 @@ Then just watch a supported app — when a skip button appears, SkipperKit taps 
 |---|---|---|
 | Netflix | ✅ | ✅ (end-of-episode card) |
 | Disney+ | ✅ | ✅ (`upNextLiteButton`) |
-| Prime Video | ✅ | ❌ — its "Next up" card exposes no stable id |
+| Prime Video | ✅ | ✅ ("Next up:" prefix match on the end card) |
+| Label-only apps | ✅ (by text) | ❌ — needs a verified end-card id first |
 
-Prime's Auto-next toggle is shown **disabled** ("Not available in this app"). Auto-next
-is **off by default** everywhere.
+Where auto-next is unsupported the toggle is shown **disabled** ("Not available in
+this app"): without a verified identifier there is no way to tell an end-of-episode
+card from an always-present control-bar button, and SkipperKit refuses to guess.
+Auto-next is **off by default** everywhere.
+
+### Sharing taught apps
+
+Every app you teach has a **Share** action on its card: it exports the app's
+approved skip buttons as a small JSON snippet via the system share sheet. Another
+user pastes it under *Add an app → Import shared* and gets the same buttons —
+after their own explicit import, and only for the one package the file names.
+Shared files can only ever describe **Skip Intro / Skip Recap** buttons; auto-next
+can never arrive via import.
+
+### Beyond streaming
+
+Skip buttons are the flagship, but the teach-and-approve loop is general: any
+repetitive, user-visible button in an app you add — a recurring "rate this app"
+nag, a daily check-in confirmation, a "still watching?" prompt — can be taught,
+approved once, and tapped for you from then on. The same constraints always hold:
+the app must be explicitly added, every button explicitly approved, and matching
+stays accessibility-tree-only. This also makes SkipperKit useful as an assistive
+tool for users for whom repeated precise taps are physically costly.
 
 ---
 
@@ -196,9 +250,11 @@ SkipperKit can also pull an updated config over HTTPS, so identifiers can be fix
 - On startup it restores saved toggles, applies the **cached** config, then fetches a
   **fresh** one. Any failure falls back cached → bundled. The fetch is HTTPS-only, with
   8 s timeouts and a 512 KB cap, and never blocks the UI.
-- Point `SettingsStore.DEFAULT_REMOTE_CONFIG_URL` at your own trusted host. The config
-  can only change which nodes get tapped within the three scoped apps; **trust the
-  host accordingly.**
+- The default URL is this project's own
+  [skipperkit-config](https://github.com/foodlbs/skipperkit-config) repo (changes land
+  via reviewed PRs). Forks should point `SettingsStore.DEFAULT_REMOTE_CONFIG_URL` at
+  their own trusted host. The config can only change which nodes get tapped within the
+  already-scoped apps; **trust the host accordingly.**
 
 Config JSON schema:
 
@@ -272,7 +328,8 @@ all against fake node trees, no device required.
 - **Labels and ids vary by locale and app version.** SkipperKit prefers stable ids and
   keeps text as a fallback, but a streaming-app redesign can still break matching until
   the (bundled or remote) config is updated.
-- **Prime auto-next** isn't supported (no stable id on its up-next card).
+- **Label-only apps are English-only for now** and more fragile than the verified
+  tier — device-verified view-ids for them are a welcome contribution.
 - It only acts on the **foregrounded** supported app, exactly like a user tap.
 
 ---
@@ -293,10 +350,10 @@ That's all. Specifically, it does **not**:
 It interacts solely with the accessibility tree and native UI controls — the same
 mechanism assistive technologies use every day.
 
-**Scope is user-controlled.** The service is scoped (via `packageNames`) to the three
-built-in apps plus any app you explicitly add in Settings — it cannot observe apps you
-didn't add. Adding or removing an app widens or narrows that scope immediately; removing
-an app also deletes everything SkipperKit learned about it.
+**Scope is user-controlled.** The service is scoped (via `packageNames`) to the
+built-in apps listed above plus any app you explicitly add in Settings — it cannot
+observe apps you didn't add. Adding or removing an app widens or narrows that scope
+immediately; removing an app also deletes everything SkipperKit learned about it.
 
 ---
 

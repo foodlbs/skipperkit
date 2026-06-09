@@ -56,6 +56,21 @@ tag `SkipperKitInspector` — that's how each app's stable identifiers were capt
 Note: end users can already add unsupported apps at runtime via **Settings → Add an
 app** (on-device discovery). Code changes are for *built-in* support or engine fixes.
 
+### Most-wanted: verify a label-only app
+
+Several built-ins (Crunchyroll, HBO Max, Hulu, Paramount+, Peacock, Apple TV —
+see the tier table in the README) currently match on visible text only because
+nobody has captured their view-ids from a real device yet. If you subscribe to
+one of them, promoting it to the verified tier is the single most useful
+contribution: follow the steps above, paste the relevant `SkipperKitInspector`
+dump snippet in the PR, and include the app version. The same change should also
+land in [skipperkit-config](https://github.com/foodlbs/skipperkit-config) so
+existing installs pick it up without an app update.
+
+Auto-next for these apps additionally needs proof that the matched node is an
+**end-of-episode card** (not an always-present control-bar button) — include a
+dump of both states if you want to enable it.
+
 ## Pull requests
 
 - Branch from `main`; keep commits small and descriptive (no "WIP").
