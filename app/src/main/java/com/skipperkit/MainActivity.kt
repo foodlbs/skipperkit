@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
@@ -24,6 +25,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.skipperkit.config.ConfigRepository
 import com.skipperkit.config.DefaultConfigs
+import com.skipperkit.contribute.ContributionPort
+import com.skipperkit.contribute.ContributionSender
+import com.skipperkit.data.SettingsStore
 import com.skipperkit.discovery.DiscoveryRepository
 import com.skipperkit.service.InstalledAppsProvider
 import com.skipperkit.service.ServiceRuntime
@@ -33,12 +37,14 @@ import com.skipperkit.settings.TaughtApp
 import com.skipperkit.settings.TaughtAppPort
 import com.skipperkit.settings.TaughtAppsRepository
 import com.skipperkit.ui.settings.AppUiState
+import com.skipperkit.ui.settings.ContributionConsentDialog
 import com.skipperkit.ui.settings.InstalledAppUi
 import com.skipperkit.ui.settings.ServiceStatus
 import com.skipperkit.ui.settings.SettingsUiState
 import com.skipperkit.ui.settings.SkipperKitSettingsScreen
 import com.skipperkit.ui.settings.SkipperKitTheme
 import com.skipperkit.ui.settings.SuggestionUi
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,6 +74,9 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     var installed by remember { mutableStateOf(emptyList<InstalledAppUi>()) }
     val provider = remember { InstalledAppsProvider(context) }
     val pickerScope = rememberCoroutineScope()
+    val settingsStore = remember { SettingsStore(context) }
+    var contributeOfferPkg by remember { mutableStateOf<String?>(null) }
+    var consentPayload by remember { mutableStateOf<Pair<String, String>?>(null) } // pkg to payload
 
     // Whether the service is enabled in system Accessibility settings can change
     // while we're backgrounded (the user toggles it there), so refresh on RESUME.
@@ -87,6 +96,44 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     val healthy = running && lastActivityMs != null && now - lastActivityMs!! < HEALTHY_WINDOW_MS
 
     val taughtNames = taughtApps.associate { it.packageName to it.displayName }
+
+    fun appVersionOf(pkg: String): String? = runCatching {
+        context.packageManager.getPackageInfo(pkg, 0).versionName
+    }.getOrNull()
+
+    fun buildPayload(pkg: String): String? = ContributionPort.build(
+        packageName = pkg,
+        displayName = taughtNames[pkg] ?: displayNameFor(pkg),
+        entries = DiscoveryRepository.approvedForPackage(pkg),
+        appVersionName = appVersionOf(pkg),
+        skipperkitVersion = BuildConfig.VERSION_NAME,
+        locale = Locale.getDefault().language,
+    )
+
+    fun sendPayload(payload: String) {
+        pickerScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                ContributionSender.send(SettingsStore.CONTRIBUTION_URL, payload)
+            }
+            Toast.makeText(
+                context,
+                if (ok) "Sent — thank you!" else "Couldn't send — try again later",
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
+    fun contribute(pkg: String) {
+        val payload = buildPayload(pkg) ?: return
+        pickerScope.launch {
+            if (settingsStore.contributionConsent()) {
+                sendPayload(payload)
+            } else {
+                consentPayload = pkg to payload
+            }
+        }
+    }
+
     val apps = baseConfigs.map { base ->
         val toggles = userSettings.apps[base.packageName]
         val autoNextSupported = base.nextEpisodeViewIds.isNotEmpty() ||
@@ -101,6 +148,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
             autoNext = toggles?.autoNext ?: base.autoNextEnabled,
             autoNextSupported = autoNextSupported,
             removable = taughtApps.any { it.packageName == base.packageName },
+            contributable = DiscoveryRepository.approvedForPackage(base.packageName).isNotEmpty(),
         )
     }
 
@@ -133,7 +181,11 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         onAppEnabledToggle = SettingsRepository::setAppEnabled,
         onFeatureToggle = SettingsRepository::setFeature,
         onOpenAccessibilitySettings = onOpenAccessibilitySettings,
-        onApproveSuggestion = DiscoveryRepository::approve,
+        onApproveSuggestion = { key ->
+            val pkg = pendingSuggestions.firstOrNull { it.key == key }?.packageName
+            DiscoveryRepository.approve(key)
+            contributeOfferPkg = pkg
+        },
         onDismissSuggestion = DiscoveryRepository::dismiss,
         onDiscoveryToggle = SettingsRepository::setDiscoverySuggestions,
         onRemoveApp = TaughtAppsRepository::remove,
@@ -169,7 +221,23 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
             }
             shared != null
         },
+        onContributeApp = ::contribute,
+        contributeOffer = contributeOfferPkg?.let { taughtNames[it] ?: displayNameFor(it) },
+        onContributeOfferSend = { contributeOfferPkg?.let { contribute(it) }; contributeOfferPkg = null },
+        onContributeOfferDismiss = { contributeOfferPkg = null },
     )
+
+    consentPayload?.let { (_, payload) ->
+        ContributionConsentDialog(
+            payload = payload,
+            onConfirm = {
+                pickerScope.launch { settingsStore.saveContributionConsent(true) }
+                sendPayload(payload)
+                consentPayload = null
+            },
+            onDismiss = { consentPayload = null },
+        )
+    }
 }
 
 private const val HEALTHY_WINDOW_MS = 5 * 60 * 1000L
