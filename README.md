@@ -1,12 +1,18 @@
 # SkipperKit
 
+[![CI](https://github.com/foodlbs/skipperkit/actions/workflows/ci.yml/badge.svg)](https://github.com/foodlbs/skipperkit/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+![Platform: Android](https://img.shields.io/badge/Platform-Android%2024%2B-3DDC84.svg)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF.svg)
+
 An Android app that automatically taps **Skip Intro**, **Skip Recap**, and **Next
 Episode** buttons in supported streaming apps — using only the Android
 **Accessibility** APIs. It behaves exactly like a user reaching over and tapping the
 button the app already shows. It never looks at video, never captures the screen,
 and never touches DRM-protected content.
 
-Supported (mobile only): **Netflix**, **Prime Video**, **Disney+**.
+Supported (mobile only): **Netflix**, **Prime Video**, **Disney+** — plus any app you
+add yourself via *Settings → Add an app*.
 
 ---
 
@@ -291,3 +297,28 @@ mechanism assistive technologies use every day.
 built-in apps plus any app you explicitly add in Settings — it cannot observe apps you
 didn't add. Adding or removing an app widens or narrows that scope immediately; removing
 an app also deletes everything SkipperKit learned about it.
+
+---
+
+## Responsible use & trademarks
+
+SkipperKit only automates a tap on a button the streaming app already shows to the
+user — the same action you'd take yourself. It does not bypass ads, DRM, paywalls, or
+any access control. Use it in accordance with the terms of the apps you use it with.
+
+SkipperKit is an independent project and is **not affiliated with, endorsed by, or
+sponsored by** Netflix, Amazon (Prime Video), The Walt Disney Company (Disney+), or any
+other streaming provider. All product names, logos, and brands are property of their
+respective owners and are used only to identify the apps SkipperKit interoperates with.
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for how to build,
+test, and add support for new apps. Security reports: see [SECURITY.md](SECURITY.md).
+
+The one hard rule: **accessibility-tree only** — no screen capture, OCR, ML vision,
+root, or media analysis, ever.
+
+## License
+
+[Apache License 2.0](LICENSE) © The SkipperKit Authors. See [NOTICE](NOTICE).
