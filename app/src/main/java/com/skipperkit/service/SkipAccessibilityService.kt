@@ -9,7 +9,10 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.skipperkit.BuildConfig
+import com.skipperkit.config.SkipTarget
+import com.skipperkit.discovery.DiscoveredEntry
 import com.skipperkit.discovery.DiscoveryEngine
+import com.skipperkit.discovery.DiscoveryRepository
 import com.skipperkit.matching.Point
 import com.skipperkit.matching.SkipEngine
 import com.skipperkit.settings.SettingsRepository
@@ -116,6 +119,20 @@ class SkipAccessibilityService : AccessibilityService() {
                 DISCOVERY_TAG,
                 "  ${c.target} text=\"${c.text}\" viewId=${c.viewId} clickable=${c.hasClickableTarget}",
             )
+            // Only skip controls with a clickable target become user-facing
+            // suggestions; next-episode is intentionally never auto-promoted.
+            if (c.hasClickableTarget &&
+                (c.target == SkipTarget.SKIP_INTRO || c.target == SkipTarget.SKIP_RECAP)
+            ) {
+                DiscoveryRepository.propose(
+                    DiscoveredEntry(
+                        packageName = packageName,
+                        target = c.target,
+                        viewId = c.viewId,
+                        label = if (c.viewId == null) c.text else null,
+                    ),
+                )
+            }
         }
     }
 

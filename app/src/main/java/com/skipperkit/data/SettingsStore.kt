@@ -5,9 +5,13 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.skipperkit.config.SkipTarget
+import com.skipperkit.discovery.DiscoveredEntry
 import com.skipperkit.settings.AppToggles
 import com.skipperkit.settings.UserSettings
 import kotlinx.coroutines.flow.first
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Preferences DataStore persistence (Phase 6): user toggles, the cached remote
@@ -53,6 +57,58 @@ class SettingsStore(private val context: Context) {
     suspend fun remoteConfigUrl(): String =
         context.dataStore.data.first()[REMOTE_CONFIG_URL] ?: DEFAULT_REMOTE_CONFIG_URL
 
+    suspend fun loadDiscovered(): Pair<List<DiscoveredEntry>, Set<String>> {
+        val prefs = context.dataStore.data.first()
+        val approved = prefs[DISCOVERY_APPROVED]?.let(::parseEntries) ?: emptyList()
+        val dismissed = prefs[DISCOVERY_DISMISSED]?.let(::parseKeys) ?: emptySet()
+        return approved to dismissed
+    }
+
+    suspend fun saveApprovedDiscovered(entries: List<DiscoveredEntry>) {
+        context.dataStore.edit { it[DISCOVERY_APPROVED] = entriesToJson(entries) }
+    }
+
+    suspend fun saveDismissedDiscovered(keys: Set<String>) {
+        context.dataStore.edit { it[DISCOVERY_DISMISSED] = keysToJson(keys) }
+    }
+
+    private fun entriesToJson(entries: List<DiscoveredEntry>): String {
+        val arr = JSONArray()
+        entries.forEach { e ->
+            arr.put(
+                JSONObject()
+                    .put("packageName", e.packageName)
+                    .put("target", e.target.name)
+                    .put("viewId", e.viewId ?: JSONObject.NULL)
+                    .put("label", e.label ?: JSONObject.NULL),
+            )
+        }
+        return arr.toString()
+    }
+
+    private fun parseEntries(json: String): List<DiscoveredEntry> = runCatching {
+        val arr = JSONArray(json)
+        (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val target = runCatching { SkipTarget.valueOf(o.optString("target")) }.getOrNull()
+                ?: return@mapNotNull null
+            DiscoveredEntry(
+                packageName = o.optString("packageName"),
+                target = target,
+                viewId = o.optString("viewId").ifEmpty { null }.takeUnless { o.isNull("viewId") },
+                label = o.optString("label").ifEmpty { null }.takeUnless { o.isNull("label") },
+            )
+        }
+    }.getOrDefault(emptyList())
+
+    private fun keysToJson(keys: Set<String>): String =
+        JSONArray().apply { keys.forEach { put(it) } }.toString()
+
+    private fun parseKeys(json: String): Set<String> = runCatching {
+        val arr = JSONArray(json)
+        (0 until arr.length()).map { arr.getString(it) }.toSet()
+    }.getOrDefault(emptySet())
+
     companion object {
         /**
          * Default endpoint. Point this at your own trusted HTTPS host; until one is
@@ -66,6 +122,8 @@ class SettingsStore(private val context: Context) {
         private val MASTER_ENABLED = booleanPreferencesKey("master_enabled")
         private val REMOTE_CONFIG_JSON = stringPreferencesKey("remote_config_json")
         private val REMOTE_CONFIG_URL = stringPreferencesKey("remote_config_url")
+        private val DISCOVERY_APPROVED = stringPreferencesKey("discovery_approved")
+        private val DISCOVERY_DISMISSED = stringPreferencesKey("discovery_dismissed")
 
         private fun appKey(packageName: String, feature: String) =
             booleanPreferencesKey("app__${packageName}__$feature")
