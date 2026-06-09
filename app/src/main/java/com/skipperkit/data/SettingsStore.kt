@@ -60,6 +60,13 @@ class SettingsStore(private val context: Context) {
     suspend fun remoteConfigUrl(): String =
         context.dataStore.data.first()[REMOTE_CONFIG_URL] ?: DEFAULT_REMOTE_CONFIG_URL
 
+    suspend fun contributionConsent(): Boolean =
+        context.dataStore.data.first()[CONTRIBUTION_CONSENT] ?: false
+
+    suspend fun saveContributionConsent(granted: Boolean) {
+        context.dataStore.edit { it[CONTRIBUTION_CONSENT] = granted }
+    }
+
     suspend fun loadDiscovered(): Pair<List<DiscoveredEntry>, Set<String>> {
         val prefs = context.dataStore.data.first()
         val approved = prefs[DISCOVERY_APPROVED]?.let(::parseEntries) ?: emptyList()
@@ -140,6 +147,10 @@ class SettingsStore(private val context: Context) {
         const val DEFAULT_REMOTE_CONFIG_URL =
             "https://raw.githubusercontent.com/foodlbs/skipperkit-config/main/config.json"
 
+        /** One-tap contribution endpoint (Supabase edge function). */
+        const val CONTRIBUTION_URL =
+            "https://jaxzkldvifgmqnoahvom.supabase.co/functions/v1/submit-config"
+
         private val Context.dataStore by preferencesDataStore(name = "skipperkit_settings")
 
         private val MASTER_ENABLED = booleanPreferencesKey("master_enabled")
@@ -149,6 +160,7 @@ class SettingsStore(private val context: Context) {
         private val DISCOVERY_APPROVED = stringPreferencesKey("discovery_approved")
         private val DISCOVERY_DISMISSED = stringPreferencesKey("discovery_dismissed")
         private val TAUGHT_APPS = stringPreferencesKey("taught_apps")
+        private val CONTRIBUTION_CONSENT = booleanPreferencesKey("contribution_consent")
 
         private fun appKey(packageName: String, feature: String) =
             booleanPreferencesKey("app__${packageName}__$feature")

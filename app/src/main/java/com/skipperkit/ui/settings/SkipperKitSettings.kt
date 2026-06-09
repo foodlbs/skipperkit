@@ -101,6 +101,7 @@ data class AppUiState(
     val autoNext: Boolean,
     val autoNextSupported: Boolean = true, // false where the app exposes no usable next id (Prime)
     val removable: Boolean = false, // true for user-added apps
+    val contributable: Boolean = false,
 )
 
 /** An installable app shown in the "add an app" picker. */
@@ -265,6 +266,10 @@ fun SkipperKitSettingsScreen(
     onLoadInstalledApps: () -> Unit = {},
     onExportApp: (packageName: String) -> Unit = {},
     onImportApp: (json: String) -> Boolean = { false },
+    onContributeApp: (packageName: String) -> Unit = {},
+    contributeOffer: String? = null,
+    onContributeOfferSend: () -> Unit = {},
+    onContributeOfferDismiss: () -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier,
@@ -312,6 +317,16 @@ fun SkipperKitSettingsScreen(
                 }
             }
 
+            if (contributeOffer != null) {
+                item("contribute-offer") {
+                    ContributeOfferCard(
+                        appName = contributeOffer,
+                        onSend = onContributeOfferSend,
+                        onDismiss = onContributeOfferDismiss,
+                    )
+                }
+            }
+
             item("section") {
                 SectionLabel("Streaming apps")
             }
@@ -324,6 +339,7 @@ fun SkipperKitSettingsScreen(
                     onFeatureToggle = onFeatureToggle,
                     onRemoveApp = onRemoveApp,
                     onExportApp = onExportApp,
+                    onContributeApp = onContributeApp,
                 )
             }
 
@@ -434,6 +450,64 @@ private fun SuggestionCard(
             }
         }
     }
+}
+
+@Composable
+private fun ContributeOfferCard(appName: String, onSend: () -> Unit, onDismiss: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = cs.surfaceContainerHigh),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(18.dp)) {
+            Text(
+                "Send this $appName button to the project?",
+                color = cs.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium,
+            )
+            Text(
+                "Everyone gets the fix after maintainer review. Sends only the button id/label, " +
+                    "app version, and language — nothing about what you watch.",
+                color = cs.onSurfaceVariant, fontSize = 12.5.sp, lineHeight = 17.sp,
+            )
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(onClick = onSend) { Text("Send") }
+                OutlinedButton(onClick = onDismiss) { Text("Not now") }
+            }
+        }
+    }
+}
+
+@Composable
+fun ContributionConsentDialog(payload: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Share with the project?") },
+        text = {
+            Column {
+                Text(
+                    "This sends exactly the following to the SkipperKit project, where it " +
+                        "becomes a public pull request a maintainer reviews:",
+                    color = cs.onSurfaceVariant, fontSize = 12.5.sp, lineHeight = 17.sp,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    payload,
+                    color = cs.onSurface, fontSize = 11.sp, lineHeight = 15.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(cs.surfaceContainerHighest, RoundedCornerShape(12.dp))
+                        .padding(10.dp),
+                )
+                Spacer(Modifier.height(6.dp))
+                Text("You won't be asked again.", color = cs.onSurfaceVariant, fontSize = 12.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Send") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 /* ── Status card — the most prominent element. Three visual states. ─────── */
@@ -658,6 +732,7 @@ private fun AppCard(
     onFeatureToggle: (String, String, Boolean) -> Unit,
     onRemoveApp: (String) -> Unit = {},
     onExportApp: (String) -> Unit = {},
+    onContributeApp: (String) -> Unit = {},
 ) {
     val cs = MaterialTheme.colorScheme
     val subActive = masterEnabled && app.enabled
@@ -692,6 +767,11 @@ private fun AppCard(
                 enabled = masterEnabled,
                 onCheckedChange = { onAppEnabledToggle(app.packageName, it) },
             )
+            if (app.contributable) {
+                TextButton(onClick = { onContributeApp(app.packageName) }) {
+                    Text("Contribute")
+                }
+            }
             if (app.removable) {
                 TextButton(onClick = { onExportApp(app.packageName) }) {
                     Text("Share")
