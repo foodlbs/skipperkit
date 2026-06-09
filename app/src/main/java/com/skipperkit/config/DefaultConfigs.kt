@@ -1,9 +1,15 @@
 package com.skipperkit.config
 
 /**
- * Bundled English defaults. Netflix values are verified against a real
- * device dump (2026-06-08). Prime values are an unverified placeholder until we
- * capture a Prime Video accessibility dump (Phase 5) — text-only for now.
+ * Bundled English defaults, in two tiers:
+ *
+ *  - **Verified** (Netflix, Prime, Disney+): view-ids captured from a real device
+ *    dump with the debug Node Inspector, with text labels as fallback.
+ *  - **Label-only** (the rest): no device dump yet, so they match only on the
+ *    visible button text. Functional but less robust — view-id verification from
+ *    the community is wanted (see CONTRIBUTING). Auto-next is deliberately left
+ *    unconfigured for these: without a verified id we can't distinguish an
+ *    end-of-episode card from an always-present control-bar button.
  */
 object DefaultConfigs {
 
@@ -73,7 +79,44 @@ object DefaultConfigs {
         autoNextEnabled = false,
     )
 
-    val ALL: List<AppConfig> = listOf(NETFLIX, PRIME, DISNEY)
+    // ── Label-only tier (unverified — view-id capture wanted) ──────────────
+
+    val CRUNCHYROLL = labelOnly(
+        packageName = "com.crunchyroll.crunchyroid",
+        skipIntroLabels = listOf("Skip Intro", "Skip Opening"),
+    )
+
+    val HBO_MAX = labelOnly(packageName = "com.wbd.stream")
+
+    val HULU = labelOnly(packageName = "com.hulu.plus")
+
+    val PARAMOUNT_PLUS = labelOnly(packageName = "com.cbs.app")
+
+    val PEACOCK = labelOnly(packageName = "com.peacocktv.peacockandroid")
+
+    val APPLE_TV = labelOnly(packageName = "com.apple.atve.androidtv.appletv")
+
+    val ALL: List<AppConfig> = listOf(
+        NETFLIX, PRIME, DISNEY,
+        CRUNCHYROLL, HBO_MAX, HULU, PARAMOUNT_PLUS, PEACOCK, APPLE_TV,
+    )
+
+    private fun labelOnly(
+        packageName: String,
+        skipIntroLabels: List<String> = listOf("Skip Intro"),
+        skipRecapLabels: List<String> = listOf("Skip Recap"),
+    ): AppConfig = AppConfig(
+        packageName = packageName,
+        locale = "en",
+        skipIntroViewIds = emptyList(),
+        skipIntroLabels = skipIntroLabels,
+        skipRecapViewIds = emptyList(),
+        skipRecapLabels = skipRecapLabels,
+        nextEpisodeViewIds = emptyList(),
+        nextEpisodeLabels = emptyList(),
+        enabled = true,
+        autoNextEnabled = false,
+    )
 
     fun forPackage(packageName: String): AppConfig? =
         ALL.firstOrNull { it.packageName == packageName }

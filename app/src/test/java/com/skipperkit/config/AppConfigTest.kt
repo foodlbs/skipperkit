@@ -72,6 +72,45 @@ class AppConfigTest {
     }
 
     @Test
+    fun `label-only tier resolves by package and matches on skip labels`() {
+        val labelOnly = listOf(
+            "com.crunchyroll.crunchyroid",
+            "com.wbd.stream",
+            "com.hulu.plus",
+            "com.cbs.app",
+            "com.peacocktv.peacockandroid",
+            "com.apple.atve.androidtv.appletv",
+        )
+        labelOnly.forEach { pkg ->
+            val config = DefaultConfigs.forPackage(pkg)
+            assertTrue("$pkg missing from DefaultConfigs", config != null)
+            assertTrue("$pkg must match Skip Intro by label", config!!.skipIntroLabels.isNotEmpty())
+            assertTrue("$pkg must match Skip Recap by label", config.skipRecapLabels.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun `label-only tier has no auto-next configuration`() {
+        val verified = setOf(
+            "com.netflix.mediaclient",
+            "com.amazon.avod.thirdpartyclient",
+            "com.disney.disneyplus",
+        )
+        DefaultConfigs.ALL.filter { it.packageName !in verified }.forEach { config ->
+            assertTrue(config.packageName, config.nextEpisodeViewIds.isEmpty())
+            assertTrue(config.packageName, config.nextEpisodeLabels.isEmpty())
+            assertTrue(config.packageName, config.nextEpisodeLabelPrefixes.isEmpty())
+            assertTrue(config.packageName, !config.autoNextEnabled)
+        }
+    }
+
+    @Test
+    fun `all bundled packages are unique`() {
+        val packages = DefaultConfigs.ALL.map { it.packageName }
+        assertEquals(packages.size, packages.toSet().size)
+    }
+
+    @Test
     fun `prime never targets the ad upsell button`() {
         val allPrimeViewIds = DefaultConfigs.PRIME.run {
             skipIntroViewIds + skipRecapViewIds + nextEpisodeViewIds

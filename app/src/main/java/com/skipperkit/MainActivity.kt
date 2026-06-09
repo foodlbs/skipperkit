@@ -154,6 +154,12 @@ private fun displayNameFor(packageName: String): String = when (packageName) {
     "com.netflix.mediaclient" -> "Netflix"
     "com.amazon.avod.thirdpartyclient" -> "Prime Video"
     "com.disney.disneyplus" -> "Disney+"
+    "com.crunchyroll.crunchyroid" -> "Crunchyroll"
+    "com.wbd.stream" -> "HBO Max"
+    "com.hulu.plus" -> "Hulu"
+    "com.cbs.app" -> "Paramount+"
+    "com.peacocktv.peacockandroid" -> "Peacock"
+    "com.apple.atve.androidtv.appletv" -> "Apple TV"
     else -> packageName
 }
 

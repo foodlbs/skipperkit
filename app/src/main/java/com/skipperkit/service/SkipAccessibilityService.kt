@@ -203,11 +203,18 @@ class SkipAccessibilityService : AccessibilityService() {
         /** Discovery is diagnostic; throttle hard so it never loads the hot path. */
         private const val DISCOVERY_INTERVAL_MS = 5000L
 
-        /** The built-in apps; always in scope. User-added apps extend this at runtime. */
+        /** The built-in apps; always in scope. User-added apps extend this at runtime.
+         *  Must stay in sync with accessibility_service_config.xml packageNames. */
         val BASELINE_PACKAGES: Set<String> = setOf(
             "com.netflix.mediaclient",
             "com.amazon.avod.thirdpartyclient",
             "com.disney.disneyplus",
+            "com.crunchyroll.crunchyroid",
+            "com.wbd.stream",
+            "com.hulu.plus",
+            "com.cbs.app",
+            "com.peacocktv.peacockandroid",
+            "com.apple.atve.androidtv.appletv",
         )
     }
 }
