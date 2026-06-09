@@ -70,29 +70,3 @@ object HeuristicNextEpisodeClassifier : NextEpisodeClassifier {
     private val CONTROL_BAR_ID_FRAGMENTS = listOf("playerControls", ":id/nextButton")
     private val CONTROL_BAR_TEXTS = listOf("next ep.")
 }
-
-/**
- * Scaffold for an on-device LLM classifier (Gemini Nano via ML Kit GenAI / AICore).
- * Not wired to a model yet — returns UNKNOWN so the composite falls back to the
- * heuristic. To implement: gate on feature availability, serialize the candidate's
- * local subtree **text only** (no pixels — preserves the privacy promise), prompt
- * "is this an end-of-episode autoplay card or the persistent control-bar next
- * button?", parse the yes/no. Must degrade to UNKNOWN when Nano is unavailable.
- */
-object GeminiNanoNextEpisodeClassifier : NextEpisodeClassifier {
-    override fun classify(candidate: NodeView, root: NodeView): NextEpisodeVerdict {
-        // TODO(R3): integrate com.google.mlkit GenAI on supported devices.
-        return NextEpisodeVerdict.UNKNOWN
-    }
-}
-
-/** Heuristic first; the LLM only decides what the heuristic leaves UNKNOWN. */
-class CompositeNextEpisodeClassifier(
-    private val primary: NextEpisodeClassifier = HeuristicNextEpisodeClassifier,
-    private val fallback: NextEpisodeClassifier = GeminiNanoNextEpisodeClassifier,
-) : NextEpisodeClassifier {
-    override fun classify(candidate: NodeView, root: NodeView): NextEpisodeVerdict {
-        val verdict = primary.classify(candidate, root)
-        return if (verdict != NextEpisodeVerdict.UNKNOWN) verdict else fallback.classify(candidate, root)
-    }
-}
