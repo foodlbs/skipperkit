@@ -38,11 +38,19 @@ class DiscoveryRepositoryTest {
     }
 
     @Test
-    fun `next-episode is never proposed`() {
+    fun `next-episode entry is accepted (the engine vets it upstream)`() {
         DiscoveryRepository.propose(
-            DiscoveredEntry(netflix, SkipTarget.NEXT_EPISODE, viewId = "n", label = null),
+            DiscoveredEntry(netflix, SkipTarget.NEXT_EPISODE, viewId = "com.x:id/upNextLiteButton", label = null),
         )
-        assertTrue(DiscoveryRepository.pending.value.isEmpty())
+        assertEquals(1, DiscoveryRepository.pending.value.size)
+    }
+
+    @Test
+    fun `approving a next-episode entry merges into the config`() {
+        val entry = DiscoveredEntry(netflix, SkipTarget.NEXT_EPISODE, viewId = null, label = "Next Episode")
+        DiscoveryRepository.propose(entry)
+        DiscoveryRepository.approve(entry.key)
+        assertTrue(ConfigRepository.forPackage(netflix)!!.nextEpisodeLabels.contains("Next Episode"))
     }
 
     @Test
