@@ -26,9 +26,12 @@ object DiscoveryRepository {
     var onApprovedChanged: ((List<DiscoveredEntry>) -> Unit)? = null
     var onDismissedChanged: ((Set<String>) -> Unit)? = null
 
-    /** A newly observed candidate. Ignored if already approved, dismissed, or pending. */
+    /**
+     * A newly observed candidate. Ignored if already approved, dismissed, or
+     * pending. Next-episode candidates reach here only after the DiscoveryEngine
+     * has vetted them as end-of-episode cards (never the control-bar button).
+     */
     fun propose(entry: DiscoveredEntry) {
-        if (entry.target == com.skipperkit.config.SkipTarget.NEXT_EPISODE) return
         val key = entry.key
         if (approvedByKey.containsKey(key) || dismissedKeys.contains(key)) return
         if (_pending.value.any { it.key == key }) return

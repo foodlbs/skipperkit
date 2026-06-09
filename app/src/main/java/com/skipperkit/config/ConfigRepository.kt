@@ -65,7 +65,12 @@ object ConfigRepository {
                         skipRecapViewIds = c.skipRecapViewIds.appendIfPresent(e.viewId),
                         skipRecapLabels = c.skipRecapLabels.appendIfPresent(e.label),
                     )
-                    SkipTarget.NEXT_EPISODE -> c // never promoted via discovery
+                    // Only end-of-episode cards reach here (vetted by the engine);
+                    // still gated at runtime by the per-app auto-next toggle.
+                    SkipTarget.NEXT_EPISODE -> c.copy(
+                        nextEpisodeViewIds = c.nextEpisodeViewIds.appendIfPresent(e.viewId),
+                        nextEpisodeLabels = c.nextEpisodeLabels.appendIfPresent(e.label),
+                    )
                 }
             }
             c

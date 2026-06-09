@@ -27,7 +27,10 @@ data class DiscoveryCandidate(
  */
 object DiscoveryEngine {
 
-    fun discover(root: NodeView): List<DiscoveryCandidate> {
+    fun discover(
+        root: NodeView,
+        nextEpisodeClassifier: NextEpisodeClassifier = HeuristicNextEpisodeClassifier,
+    ): List<DiscoveryCandidate> {
         val found = LinkedHashMap<String, DiscoveryCandidate>()
         walk(root, depth = 0) { node ->
             val text = (node.text?.trim().takeUnless { it.isNullOrEmpty() }
@@ -36,6 +39,13 @@ object DiscoveryEngine {
             val lower = text.lowercase()
             if (DENY.any { lower.contains(it) }) return@walk
             val target = classify(lower) ?: return@walk
+            // A next-episode control is only surfaced when it's the end-of-episode
+            // card — never the always-present control-bar next button.
+            if (target == SkipTarget.NEXT_EPISODE &&
+                nextEpisodeClassifier.classify(node, root) != NextEpisodeVerdict.END_CARD
+            ) {
+                return@walk
+            }
             val candidate = DiscoveryCandidate(
                 target = target,
                 text = text,

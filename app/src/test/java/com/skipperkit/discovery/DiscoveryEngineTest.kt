@@ -60,6 +60,32 @@ class DiscoveryEngineTest {
     }
 
     @Test
+    fun `control-bar next-episode is NOT discovered`() {
+        val root = FakeNode(
+            children = listOf(
+                FakeNode(viewId = "playPauseButtonTestTag", isClickable = true),
+                FakeNode(viewId = "nextEpisodeButtonTestTag", isClickable = true,
+                    children = listOf(FakeNode(text = "Next Ep."))),
+            ),
+        )
+        assertTrue(DiscoveryEngine.discover(root).none { it.target == SkipTarget.NEXT_EPISODE })
+    }
+
+    @Test
+    fun `end-card next-episode IS discovered`() {
+        val root = FakeNode(
+            children = listOf(
+                FakeNode(text = "UP NEXT", viewId = "com.disney.disneyplus:id/upNextLiteTitle"),
+                FakeNode(text = "NEXT EPISODE", viewId = "com.disney.disneyplus:id/upNextLiteButton", isClickable = true),
+            ),
+        )
+        assertTrue(
+            DiscoveryEngine.discover(root)
+                .any { it.target == SkipTarget.NEXT_EPISODE && it.hasClickableTarget },
+        )
+    }
+
+    @Test
     fun `ignores unrelated controls`() {
         val root = FakeNode(
             children = listOf(
