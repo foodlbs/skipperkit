@@ -33,29 +33,32 @@ class SkipperApp : Application() {
         val store = SettingsStore(this)
 
         scope.launch {
-            // 1. Restore user toggles before the UI/service read them.
+            // 1. Restore taught apps first — this seeds SettingsRepository entries via ensureApp.
             runCatching {
-                SettingsRepository.restore(store.loadUserSettings(SettingsRepository.snapshotDefaults()))
+                TaughtAppsRepository.restore(store.loadTaughtApps())
+            }.onFailure { Log.w(TAG, "Could not load taught apps", it) }
+
+            // 2. Load user settings using the current SettingsRepository state (which now includes
+            //    taught packages) as defaults, so persisted taught-app toggles are restored.
+            runCatching {
+                SettingsRepository.restore(store.loadUserSettings(SettingsRepository.settings.value))
             }.onFailure { Log.w(TAG, "Could not load saved settings", it) }
 
-            // 1b. Restore discovery decisions and persist future ones.
+            // 3. Restore discovery decisions.
             runCatching {
                 val (approved, dismissed) = store.loadDiscovered()
                 DiscoveryRepository.restore(approved, dismissed)
             }.onFailure { Log.w(TAG, "Could not load discovery state", it) }
+
+            // 4. Wire persistence listeners.
+            TaughtAppsRepository.onChanged = { apps ->
+                scope.launch { runCatching { store.saveTaughtApps(apps) } }
+            }
             DiscoveryRepository.onApprovedChanged = { entries ->
                 scope.launch { runCatching { store.saveApprovedDiscovered(entries) } }
             }
             DiscoveryRepository.onDismissedChanged = { keys ->
                 scope.launch { runCatching { store.saveDismissedDiscovered(keys) } }
-            }
-
-            // Restore taught apps and persist future changes.
-            runCatching {
-                TaughtAppsRepository.restore(store.loadTaughtApps())
-            }.onFailure { Log.w(TAG, "Could not load taught apps", it) }
-            TaughtAppsRepository.onChanged = { apps ->
-                scope.launch { runCatching { store.saveTaughtApps(apps) } }
             }
 
             // 2. Apply cached remote config, if any.

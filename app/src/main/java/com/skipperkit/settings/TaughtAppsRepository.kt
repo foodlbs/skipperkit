@@ -30,6 +30,7 @@ object TaughtAppsRepository {
         if (_taughtApps.value.any { it.packageName == app.packageName }) return
         _taughtApps.value = _taughtApps.value + app
         ConfigRepository.setTaughtApps(currentPackages())
+        SettingsRepository.ensureApp(app.packageName)
         onChanged?.invoke(_taughtApps.value)
     }
 
@@ -39,6 +40,7 @@ object TaughtAppsRepository {
         _taughtApps.value = _taughtApps.value.filterNot { it.packageName == packageName }
         ConfigRepository.setTaughtApps(currentPackages())
         DiscoveryRepository.removeForPackage(packageName)
+        SettingsRepository.dropApp(packageName)
         onChanged?.invoke(_taughtApps.value)
     }
 
@@ -47,5 +49,6 @@ object TaughtAppsRepository {
     fun restore(apps: List<TaughtApp>) {
         _taughtApps.value = apps
         ConfigRepository.setTaughtApps(currentPackages())
+        apps.forEach { SettingsRepository.ensureApp(it.packageName) }
     }
 }

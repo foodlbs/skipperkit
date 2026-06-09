@@ -78,7 +78,7 @@ class SkipAccessibilityService : AccessibilityService() {
 
     private fun applyScope() {
         scopedPackages = BASELINE_PACKAGES + TaughtAppsRepository.currentPackages()
-        val info = serviceInfo ?: return
+        val info = serviceInfo ?: run { Log.w(TAG, "applyScope: serviceInfo null"); return }
         info.packageNames = scopedPackages.toTypedArray()
         serviceInfo = info
     }
