@@ -14,7 +14,7 @@ Accessibility APIs. This guide covers how to build, test, and contribute.
   (`config/DefaultConfigs.kt`), never hardcoded in matching logic.
 - **Determinism first.** Keep the hot path (the accessibility callback) cheap and
   deterministic. Heavier/heuristic work belongs off-thread and throttled. We
-  researched and **declined** an on-device LLM — see `plans/adr-001-on-device-llm.md`.
+  researched and **declined** an on-device LLM as unjustified for this use case.
 
 ## Building
 
