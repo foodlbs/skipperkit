@@ -228,6 +228,15 @@ after their own explicit import, and only for the one package the file names.
 Shared files can only ever describe **Skip Intro / Skip Recap** buttons; auto-next
 can never arrive via import.
 
+### Contributing a fix from your phone (one tap)
+
+When SkipperKit discovers a working skip button that isn't in the shared config,
+you can send it upstream directly from the app — after approving a suggestion
+("Send this to the project?") or via **Contribute** on the app's card. The first
+send shows you the exact JSON; after that it's one tap. Submissions become public
+pull requests on [skipperkit-config](https://github.com/foodlbs/skipperkit-config)
+that a maintainer reviews before they reach anyone's device.
+
 ### Beyond streaming
 
 Skip buttons are the flagship, but the teach-and-approve loop is general: any
@@ -345,8 +354,11 @@ That's all. Specifically, it does **not**:
 - analyze video frames or audio,
 - intercept, decrypt, or access DRM-protected media,
 - use root or ADB,
-- send your viewing data anywhere. (The only network call is an outbound HTTPS GET to
-  fetch the button-configuration file; nothing about what you watch is transmitted.)
+- send your viewing data anywhere. (Two network calls exist, both HTTPS: an outbound
+  GET for the button-configuration file, and — only when you explicitly tap
+  **Send/Contribute** — a POST containing a button's id/label, the streaming app's
+  version, SkipperKit's version, and your language code. Never device identifiers,
+  never anything about what you watch.)
 
 It interacts solely with the accessibility tree and native UI controls — the same
 mechanism assistive technologies use every day.
