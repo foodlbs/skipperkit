@@ -37,3 +37,6 @@ captures/
 *.jks
 *.keystore
 keystore.properties
+
+# Local planning notes — leaked machine paths into history once; keep untracked
+plans/
