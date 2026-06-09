@@ -15,6 +15,12 @@ import com.skipperkit.discovery.DiscoveryRepository
 import com.skipperkit.matching.Point
 import com.skipperkit.matching.SkipEngine
 import com.skipperkit.settings.SettingsRepository
+import com.skipperkit.settings.TaughtAppsRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Phase 3: detects and clicks skip buttons in the supported apps.
@@ -37,6 +43,10 @@ class SkipAccessibilityService : AccessibilityService() {
 
     private var inspector: NodeInspector? = null
 
+    private val scopeWatcher = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    @Volatile private var scopedPackages: Set<String> = BASELINE_PACKAGES
+
     @Volatile
     private var lastDiscoveryUptimeMs = 0L
 
@@ -50,6 +60,8 @@ class SkipAccessibilityService : AccessibilityService() {
             inspector = NodeInspector()
         }
         ServiceRuntime.setRunning(true)
+        applyScope()
+        scopeWatcher.launch { TaughtAppsRepository.taughtApps.collect { applyScope() } }
         Log.i(TAG, "Service connected (inspector=${inspector != null})")
     }
 
@@ -57,11 +69,18 @@ class SkipAccessibilityService : AccessibilityService() {
         if (event == null) return
 
         val packageName = event.packageName?.toString() ?: return
-        if (packageName !in SUPPORTED_PACKAGES) return
+        if (packageName !in scopedPackages) return
 
         ServiceRuntime.recordActivity(System.currentTimeMillis())
         workerHandler?.post { runEngine(packageName) }
         inspector?.requestDump { rootInActiveWindow }
+    }
+
+    private fun applyScope() {
+        scopedPackages = BASELINE_PACKAGES + TaughtAppsRepository.currentPackages()
+        val info = serviceInfo ?: return
+        info.packageNames = scopedPackages.toTypedArray()
+        serviceInfo = info
     }
 
     private fun runEngine(packageName: String) {
@@ -164,6 +183,7 @@ class SkipAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        scopeWatcher.cancel()
         ServiceRuntime.setRunning(false)
         inspector?.shutdown()
         inspector = null
@@ -183,7 +203,8 @@ class SkipAccessibilityService : AccessibilityService() {
         /** Discovery is diagnostic; throttle hard so it never loads the hot path. */
         private const val DISCOVERY_INTERVAL_MS = 5000L
 
-        val SUPPORTED_PACKAGES: Set<String> = setOf(
+        /** The built-in apps; always in scope. User-added apps extend this at runtime. */
+        val BASELINE_PACKAGES: Set<String> = setOf(
             "com.netflix.mediaclient",
             "com.amazon.avod.thirdpartyclient",
             "com.disney.disneyplus",
