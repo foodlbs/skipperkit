@@ -28,8 +28,10 @@ import androidx.compose.material.icons.outlined.GppMaybe
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ColorScheme
@@ -260,6 +262,8 @@ fun SkipperKitSettingsScreen(
     onRemoveApp: (packageName: String) -> Unit = {},
     onAddApp: (packageName: String, displayName: String) -> Unit = { _, _ -> },
     onLoadInstalledApps: () -> Unit = {},
+    onExportApp: (packageName: String) -> Unit = {},
+    onImportApp: (json: String) -> Boolean = { false },
 ) {
     Scaffold(
         modifier = modifier,
@@ -318,6 +322,7 @@ fun SkipperKitSettingsScreen(
                     onAppEnabledToggle = onAppEnabledToggle,
                     onFeatureToggle = onFeatureToggle,
                     onRemoveApp = onRemoveApp,
+                    onExportApp = onExportApp,
                 )
             }
 
@@ -326,6 +331,7 @@ fun SkipperKitSettingsScreen(
                     installed = state.installedApps,
                     onExpand = onLoadInstalledApps,
                     onPick = onAddApp,
+                    onImport = onImportApp,
                 )
             }
 
@@ -650,6 +656,7 @@ private fun AppCard(
     onAppEnabledToggle: (String, Boolean) -> Unit,
     onFeatureToggle: (String, String, Boolean) -> Unit,
     onRemoveApp: (String) -> Unit = {},
+    onExportApp: (String) -> Unit = {},
 ) {
     val cs = MaterialTheme.colorScheme
     val subActive = masterEnabled && app.enabled
@@ -685,6 +692,9 @@ private fun AppCard(
                 onCheckedChange = { onAppEnabledToggle(app.packageName, it) },
             )
             if (app.removable) {
+                TextButton(onClick = { onExportApp(app.packageName) }) {
+                    Text("Share")
+                }
                 TextButton(onClick = { onRemoveApp(app.packageName) }) {
                     Text("Remove")
                 }
@@ -728,9 +738,11 @@ private fun AddAppCard(
     installed: List<InstalledAppUi>,
     onExpand: () -> Unit,
     onPick: (String, String) -> Unit,
+    onImport: (String) -> Boolean = { false },
 ) {
     val cs = MaterialTheme.colorScheme
     var open by remember { mutableStateOf(false) }
+    var importOpen by remember { mutableStateOf(false) }
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = cs.surfaceContainer),
@@ -744,7 +756,16 @@ private fun AddAppCard(
                 color = cs.onSurfaceVariant, fontSize = 12.5.sp, lineHeight = 17.sp,
             )
             Spacer(Modifier.height(12.dp))
-            FilledTonalButton(onClick = { open = true; onExpand() }) { Text("Choose an app") }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilledTonalButton(onClick = { open = true; onExpand() }) { Text("Choose an app") }
+                TextButton(onClick = { importOpen = true }) { Text("Import shared") }
+            }
+            if (importOpen) {
+                ImportAppDialog(
+                    onImport = onImport,
+                    onClose = { importOpen = false },
+                )
+            }
             if (open) {
                 Spacer(Modifier.height(8.dp))
                 installed.forEach { app ->
@@ -761,6 +782,54 @@ private fun AddAppCard(
             }
         }
     }
+}
+
+@Composable
+private fun ImportAppDialog(
+    onImport: (String) -> Boolean,
+    onClose: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    var text by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Import a shared app") },
+        text = {
+            Column {
+                Text(
+                    "Paste a configuration another SkipperKit user shared. It can only " +
+                        "add skip buttons for the one app it names — you can remove it anytime.",
+                    color = cs.onSurfaceVariant,
+                    fontSize = 12.5.sp,
+                    lineHeight = 17.sp,
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it; error = false },
+                    minLines = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (error) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "That doesn't look like a shared SkipperKit app.",
+                        color = cs.error,
+                        fontSize = 12.5.sp,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { if (onImport(text)) onClose() else error = true }) {
+                Text("Import")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onClose) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable

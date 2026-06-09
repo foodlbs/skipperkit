@@ -103,6 +103,34 @@ class DiscoveryRepositoryTest {
     }
 
     @Test
+    fun `addApproved merges imported entries into the config and persists`() {
+        var persisted: List<DiscoveredEntry>? = null
+        DiscoveryRepository.onApprovedChanged = { persisted = it }
+        val pkg = "com.example.player"
+        ConfigRepository.setTaughtApps(listOf(pkg))
+        val entry = DiscoveredEntry(pkg, SkipTarget.SKIP_INTRO, viewId = "$pkg:id/skip", label = null)
+
+        DiscoveryRepository.addApproved(listOf(entry))
+
+        assertEquals(listOf(entry), DiscoveryRepository.approvedForPackage(pkg))
+        assertTrue(ConfigRepository.forPackage(pkg)!!.skipIntroViewIds.contains("$pkg:id/skip"))
+        assertEquals(1, persisted?.size)
+    }
+
+    @Test
+    fun `addApproved is idempotent and does not re-notify for known keys`() {
+        val entry = introByViewId("a/b")
+        DiscoveryRepository.addApproved(listOf(entry))
+        var notified = false
+        DiscoveryRepository.onApprovedChanged = { notified = true }
+
+        DiscoveryRepository.addApproved(listOf(entry))
+
+        assertEquals(1, DiscoveryRepository.approvedForPackage(netflix).size)
+        assertFalse(notified)
+    }
+
+    @Test
     fun `removeForPackage clears pending, approved, and dismissed for that package`() {
         val hbo = "com.hbo.hbonow"
         val intro = DiscoveredEntry(hbo, SkipTarget.SKIP_INTRO, viewId = "a/b", label = null)

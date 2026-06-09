@@ -55,6 +55,25 @@ object DiscoveryRepository {
     }
 
     @Synchronized
+    fun approvedForPackage(packageName: String): List<DiscoveredEntry> =
+        approvedByKey.values.filter { it.packageName == packageName }
+
+    /**
+     * Merge externally shared entries straight into the approved set (the import
+     * path — the user's explicit import action is the consent). Dedupes by key.
+     */
+    @Synchronized
+    fun addApproved(entries: List<DiscoveredEntry>) {
+        var changed = false
+        entries.forEach { e ->
+            if (approvedByKey.put(e.key, e) == null) changed = true
+        }
+        if (!changed) return
+        ConfigRepository.setDiscovered(approvedByKey.values.toList())
+        onApprovedChanged?.invoke(approvedByKey.values.toList())
+    }
+
+    @Synchronized
     fun removeForPackage(packageName: String) {
         _pending.value = _pending.value.filterNot { it.packageName == packageName }
         val approvedRemoved = approvedByKey.values.removeAll { it.packageName == packageName }
