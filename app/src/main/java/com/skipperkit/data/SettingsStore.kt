@@ -133,11 +133,12 @@ class SettingsStore(private val context: Context) {
 
     companion object {
         /**
-         * Default endpoint. Point this at your own trusted HTTPS host; until one is
-         * published the fetch simply fails and the app uses bundled/cached config.
+         * Default endpoint, served from the SkipperKit project's config repo.
+         * Forks should point this at their own trusted HTTPS host. If the fetch
+         * fails the app falls back to cached → bundled config.
          */
         const val DEFAULT_REMOTE_CONFIG_URL =
-            "https://raw.githubusercontent.com/skipperkit/config/main/config.json"
+            "https://raw.githubusercontent.com/foodlbs/skipperkit-config/main/config.json"
 
         private val Context.dataStore by preferencesDataStore(name = "skipperkit_settings")
 
