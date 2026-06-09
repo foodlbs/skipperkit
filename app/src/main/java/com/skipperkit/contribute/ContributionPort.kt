@@ -16,6 +16,7 @@ object ContributionPort {
     private const val FORMAT_KEY = "skipperkitContribution"
     private const val FORMAT_VERSION = 1
     private const val MAX_BUTTONS = 20
+    private const val MAX_DISPLAY_NAME = 50
 
     /** Returns null when there is nothing contributable (no skip buttons). */
     fun build(
@@ -28,12 +29,13 @@ object ContributionPort {
     ): String? {
         val buttons = entries
             .filter { it.target != SkipTarget.NEXT_EPISODE }
+            .filter { it.viewId != null || it.label != null }
             .take(MAX_BUTTONS)
         if (buttons.isEmpty()) return null
         return JSONObject().apply {
             put(FORMAT_KEY, FORMAT_VERSION)
             put("packageName", packageName)
-            put("displayName", displayName)
+            put("displayName", displayName.take(MAX_DISPLAY_NAME))
             put("buttons", JSONArray().apply {
                 buttons.forEach { e ->
                     put(JSONObject()

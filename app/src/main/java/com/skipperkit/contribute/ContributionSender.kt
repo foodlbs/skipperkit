@@ -1,6 +1,5 @@
 package com.skipperkit.contribute
 
-import java.net.HttpURLConnection
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
@@ -23,7 +22,7 @@ object ContributionSender {
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.outputStream.use { it.write(jsonBody.toByteArray(Charsets.UTF_8)) }
-                conn.responseCode == HttpURLConnection.HTTP_OK
+                conn.responseCode in 200..299
             } finally {
                 conn.disconnect()
             }

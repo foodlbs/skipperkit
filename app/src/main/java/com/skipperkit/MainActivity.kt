@@ -77,6 +77,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     val settingsStore = remember { SettingsStore(context) }
     var contributeOfferPkg by remember { mutableStateOf<String?>(null) }
     var consentPayload by remember { mutableStateOf<Pair<String, String>?>(null) } // pkg to payload
+    var sendInFlight by remember { mutableStateOf(false) }
 
     // Whether the service is enabled in system Accessibility settings can change
     // while we're backgrounded (the user toggles it there), so refresh on RESUME.
@@ -111,15 +112,21 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     )
 
     fun sendPayload(payload: String) {
+        if (sendInFlight) return
+        sendInFlight = true
         pickerScope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                ContributionSender.send(SettingsStore.CONTRIBUTION_URL, payload)
+            try {
+                val ok = withContext(Dispatchers.IO) {
+                    ContributionSender.send(SettingsStore.CONTRIBUTION_URL, payload)
+                }
+                Toast.makeText(
+                    context,
+                    if (ok) "Sent — thank you!" else "Couldn't send — try again later",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            } finally {
+                sendInFlight = false
             }
-            Toast.makeText(
-                context,
-                if (ok) "Sent — thank you!" else "Couldn't send — try again later",
-                Toast.LENGTH_SHORT,
-            ).show()
         }
     }
 
@@ -182,7 +189,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         onFeatureToggle = SettingsRepository::setFeature,
         onOpenAccessibilitySettings = onOpenAccessibilitySettings,
         onApproveSuggestion = { key ->
-            val pkg = pendingSuggestions.firstOrNull { it.key == key }?.packageName
+            val pkg = DiscoveryRepository.pending.value.firstOrNull { it.key == key }?.packageName
             DiscoveryRepository.approve(key)
             contributeOfferPkg = pkg
         },

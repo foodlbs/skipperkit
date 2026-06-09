@@ -46,6 +46,18 @@ class ContributionPortTest {
     }
 
     @Test
+    fun `entries with neither id nor label are dropped and long names capped`() {
+        val bare = DiscoveredEntry("com.example.player", SkipTarget.SKIP_INTRO, null, null)
+        assertNull(build(listOf(bare)))
+
+        val json = ContributionPort.build(
+            "com.example.player", "x".repeat(200), listOf(intro),
+            appVersionName = null, skipperkitVersion = "0.1.0", locale = "en",
+        )!!
+        assertEquals(50, JSONObject(json).getString("displayName").length)
+    }
+
+    @Test
     fun `null app version is omitted, buttons capped at 20`() {
         val json = ContributionPort.build(
             "com.example.player", "X", List(50) {
