@@ -12,18 +12,26 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.skipperkit.config.ConfigRepository
 import com.skipperkit.discovery.DiscoveryRepository
+import com.skipperkit.service.InstalledAppsProvider
 import com.skipperkit.service.ServiceRuntime
 import com.skipperkit.service.SkipAccessibilityService
 import com.skipperkit.settings.SettingsRepository
+import com.skipperkit.settings.TaughtApp
+import com.skipperkit.settings.TaughtAppsRepository
 import com.skipperkit.ui.settings.AppUiState
+import com.skipperkit.ui.settings.InstalledAppUi
 import com.skipperkit.ui.settings.ServiceStatus
 import com.skipperkit.ui.settings.SettingsUiState
 import com.skipperkit.ui.settings.SkipperKitSettingsScreen
@@ -54,6 +62,10 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     val running by ServiceRuntime.running.collectAsState()
     val lastActivityMs by ServiceRuntime.lastActivityMs.collectAsState()
     val pendingSuggestions by DiscoveryRepository.pending.collectAsState()
+    val taughtApps by TaughtAppsRepository.taughtApps.collectAsState()
+    var installed by remember { mutableStateOf(emptyList<InstalledAppUi>()) }
+    val provider = remember { InstalledAppsProvider(context) }
+    val pickerScope = rememberCoroutineScope()
 
     // Whether the service is enabled in system Accessibility settings can change
     // while we're backgrounded (the user toggles it there), so refresh on RESUME.
@@ -72,6 +84,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     val now = System.currentTimeMillis()
     val healthy = running && lastActivityMs != null && now - lastActivityMs!! < HEALTHY_WINDOW_MS
 
+    val taughtNames = taughtApps.associate { it.packageName to it.displayName }
     val apps = baseConfigs.map { base ->
         val toggles = userSettings.apps[base.packageName]
         val autoNextSupported = base.nextEpisodeViewIds.isNotEmpty() ||
@@ -79,12 +92,13 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
             base.nextEpisodeLabelPrefixes.isNotEmpty()
         AppUiState(
             packageName = base.packageName,
-            displayName = displayNameFor(base.packageName),
+            displayName = taughtNames[base.packageName] ?: displayNameFor(base.packageName),
             enabled = toggles?.enabled ?: base.enabled,
             skipIntro = toggles?.skipIntro ?: true,
             skipRecap = toggles?.skipRecap ?: true,
             autoNext = toggles?.autoNext ?: base.autoNextEnabled,
             autoNextSupported = autoNextSupported,
+            removable = taughtApps.any { it.packageName == base.packageName },
         )
     }
 
@@ -108,6 +122,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         apps = apps,
         suggestions = suggestions,
         discoverySuggestionsEnabled = userSettings.discoverySuggestions,
+        installedApps = installed,
     )
 
     SkipperKitSettingsScreen(
@@ -119,6 +134,17 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         onApproveSuggestion = DiscoveryRepository::approve,
         onDismissSuggestion = DiscoveryRepository::dismiss,
         onDiscoveryToggle = SettingsRepository::setDiscoverySuggestions,
+        onRemoveApp = TaughtAppsRepository::remove,
+        onAddApp = { pkg, name -> TaughtAppsRepository.add(TaughtApp(pkg, name)) },
+        onLoadInstalledApps = {
+            val taken = baseConfigs.map { it.packageName }.toSet() + context.packageName
+            pickerScope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    provider.launchableApps(exclude = taken).map { InstalledAppUi(it.packageName, it.displayName) }
+                }
+                installed = result
+            }
+        },
     )
 }
 

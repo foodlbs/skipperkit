@@ -67,6 +67,12 @@ recognition, no ML vision, no root, and no ADB automation.**
 | Prime Video (mobile) | `com.amazon.avod.thirdpartyclient` |
 | Disney+ (mobile) | `com.disney.disneyplus` |
 
+You can also **add other apps** yourself (Settings → *Add an app*). The accessibility
+service only ever observes these three built-ins **plus the apps you explicitly add** —
+never anything else. Added apps are read the same way (accessibility text only, no
+capture), discovery proposes their skip buttons for you to approve, and you can remove
+any of them at any time.
+
 ### TV is explicitly **not** supported
 
 > TV applications generally expose little or no accessible node tree, making reliable
@@ -280,3 +286,8 @@ That's all. Specifically, it does **not**:
 
 It interacts solely with the accessibility tree and native UI controls — the same
 mechanism assistive technologies use every day.
+
+**Scope is user-controlled.** The service is scoped (via `packageNames`) to the three
+built-in apps plus any app you explicitly add in Settings — it cannot observe apps you
+didn't add. Adding or removing an app widens or narrows that scope immediately; removing
+an app also deletes everything SkipperKit learned about it.

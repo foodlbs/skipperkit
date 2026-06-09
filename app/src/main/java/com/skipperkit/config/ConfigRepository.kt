@@ -16,6 +16,7 @@ object ConfigRepository {
 
     private var remoteOverride: List<AppConfig> = emptyList()
     private var discovered: List<DiscoveredEntry> = emptyList()
+    private var taughtPackages: List<String> = emptyList()
 
     private val _configs = MutableStateFlow(DefaultConfigs.ALL)
     val configs: StateFlow<List<AppConfig>> = _configs.asStateFlow()
@@ -24,6 +25,7 @@ object ConfigRepository {
         _configs.value.firstOrNull { it.packageName == packageName }
 
     /** Overlay a remote/cached config; empty input is ignored (a failed fetch can't blank configs). */
+    @Synchronized
     fun applyRemote(remote: List<AppConfig>) {
         if (remote.isEmpty()) return
         remoteOverride = remote
@@ -31,15 +33,40 @@ object ConfigRepository {
     }
 
     /** Replace the set of user-approved discovered identifiers. */
+    @Synchronized
     fun setDiscovered(entries: List<DiscoveredEntry>) {
         discovered = entries
         recompute()
     }
 
+    /** Replace the set of user-added (taught) app packages. Each becomes an empty
+     *  config stub that discovery then populates. */
+    @Synchronized
+    fun setTaughtApps(packageNames: List<String>) {
+        taughtPackages = packageNames
+        recompute()
+    }
+
     private fun recompute() {
         val base = overlayRemote(DefaultConfigs.ALL, remoteOverride)
-        _configs.value = applyDiscovered(base, discovered)
+        val withTaught = base + taughtPackages
+            .filter { pkg -> base.none { it.packageName == pkg } }
+            .map { stubConfig(it) }
+        _configs.value = applyDiscovered(withTaught, discovered)
     }
+
+    private fun stubConfig(packageName: String): AppConfig = AppConfig(
+        packageName = packageName,
+        locale = "en",
+        skipIntroViewIds = emptyList(),
+        skipIntroLabels = emptyList(),
+        skipRecapViewIds = emptyList(),
+        skipRecapLabels = emptyList(),
+        nextEpisodeViewIds = emptyList(),
+        nextEpisodeLabels = emptyList(),
+        enabled = true,
+        autoNextEnabled = false,
+    )
 
     private fun overlayRemote(bundled: List<AppConfig>, remote: List<AppConfig>): List<AppConfig> {
         if (remote.isEmpty()) return bundled

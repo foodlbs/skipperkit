@@ -79,6 +79,22 @@ object SettingsRepository {
             }
         }
 
+    @Synchronized
+    fun ensureApp(packageName: String) {
+        val cur = _settings.value
+        if (cur.apps.containsKey(packageName)) return
+        _settings.value = cur.copy(
+            apps = cur.apps + (packageName to AppToggles(enabled = true, skipIntro = true, skipRecap = true, autoNext = false)),
+        )
+    }
+
+    @Synchronized
+    fun dropApp(packageName: String) {
+        val cur = _settings.value
+        if (!cur.apps.containsKey(packageName)) return
+        _settings.value = cur.copy(apps = cur.apps - packageName)
+    }
+
     private fun update(packageName: String, transform: (AppToggles) -> AppToggles) {
         val current = _settings.value
         val toggles = current.apps[packageName] ?: return

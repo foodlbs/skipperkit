@@ -8,6 +8,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.skipperkit.config.SkipTarget
 import com.skipperkit.discovery.DiscoveredEntry
 import com.skipperkit.settings.AppToggles
+import com.skipperkit.settings.TaughtApp
 import com.skipperkit.settings.UserSettings
 import kotlinx.coroutines.flow.first
 import org.json.JSONArray
@@ -74,6 +75,25 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { it[DISCOVERY_DISMISSED] = keysToJson(keys) }
     }
 
+    suspend fun loadTaughtApps(): List<TaughtApp> {
+        val json = context.dataStore.data.first()[TAUGHT_APPS] ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(json)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val pkg = o.optString("packageName")
+                if (pkg.isEmpty()) return@mapNotNull null
+                TaughtApp(pkg, o.optString("displayName", pkg))
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    suspend fun saveTaughtApps(apps: List<TaughtApp>) {
+        val arr = JSONArray()
+        apps.forEach { arr.put(JSONObject().put("packageName", it.packageName).put("displayName", it.displayName)) }
+        context.dataStore.edit { it[TAUGHT_APPS] = arr.toString() }
+    }
+
     private fun entriesToJson(entries: List<DiscoveredEntry>): String {
         val arr = JSONArray()
         entries.forEach { e ->
@@ -127,6 +147,7 @@ class SettingsStore(private val context: Context) {
         private val REMOTE_CONFIG_URL = stringPreferencesKey("remote_config_url")
         private val DISCOVERY_APPROVED = stringPreferencesKey("discovery_approved")
         private val DISCOVERY_DISMISSED = stringPreferencesKey("discovery_dismissed")
+        private val TAUGHT_APPS = stringPreferencesKey("taught_apps")
 
         private fun appKey(packageName: String, feature: String) =
             booleanPreferencesKey("app__${packageName}__$feature")
