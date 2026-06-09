@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.skipperkit.config.ConfigRepository
+import com.skipperkit.config.DefaultConfigs
 import com.skipperkit.discovery.DiscoveryRepository
 import com.skipperkit.service.InstalledAppsProvider
 import com.skipperkit.service.ServiceRuntime
@@ -159,7 +160,11 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         onImportApp = { json ->
             val shared = TaughtAppPort.parse(json)
             if (shared != null) {
-                TaughtAppsRepository.add(shared.app)
+                // Built-ins must not become "taught": that would render them
+                // removable, and removing would wipe their toggles and config.
+                if (DefaultConfigs.forPackage(shared.app.packageName) == null) {
+                    TaughtAppsRepository.add(shared.app)
+                }
                 DiscoveryRepository.addApproved(shared.entries)
             }
             shared != null

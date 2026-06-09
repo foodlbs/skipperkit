@@ -56,6 +56,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -790,7 +791,8 @@ private fun ImportAppDialog(
     onClose: () -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
-    var text by remember { mutableStateOf("") }
+    // Saveable so a rotation mid-paste doesn't wipe the pasted JSON.
+    var text by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onClose,

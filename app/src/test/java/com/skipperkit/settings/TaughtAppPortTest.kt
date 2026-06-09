@@ -79,6 +79,22 @@ class TaughtAppPortTest {
     }
 
     @Test
+    fun `imported buttons are capped and oversized strings truncated`() {
+        val buttons = (0 until 100).joinToString(",") {
+            """{"target":"SKIP_INTRO","viewId":"com.example.player:id/skip$it"}"""
+        }
+        val flood = """{"skipperkitTaughtApp":1,"packageName":"com.example.player","buttons":[$buttons]}"""
+        assertEquals(20, TaughtAppPort.parse(flood)!!.entries.size)
+
+        val longLabel = "x".repeat(10_000)
+        val oversized = """
+            {"skipperkitTaughtApp":1,"packageName":"com.example.player",
+             "buttons":[{"target":"SKIP_INTRO","label":"$longLabel"}]}
+        """.trimIndent()
+        assertEquals(256, TaughtAppPort.parse(oversized)!!.entries.single().label!!.length)
+    }
+
+    @Test
     fun `unknown future format version is rejected`() {
         val handCrafted = """{"skipperkitTaughtApp":2,"packageName":"com.example.player","buttons":[]}"""
         assertNull(TaughtAppPort.parse(handCrafted))

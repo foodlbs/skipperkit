@@ -25,6 +25,11 @@ object TaughtAppPort {
     private const val FORMAT_VERSION = 1
     private const val MAX_DISPLAY_NAME = 50
 
+    // A hand-taught app has a handful of buttons; a crafted file must not be able
+    // to flood the approved set or the config singleton with unbounded data.
+    private const val MAX_BUTTONS = 20
+    private const val MAX_STRING = 256
+
     private val PACKAGE_REGEX = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")
 
     fun export(app: TaughtApp, entries: List<DiscoveredEntry>): String =
@@ -59,7 +64,7 @@ object TaughtAppPort {
             .take(MAX_DISPLAY_NAME).ifEmpty { packageName }
 
         val buttons = root.optJSONArray("buttons") ?: JSONArray()
-        val entries = (0 until buttons.length()).mapNotNull { i ->
+        val entries = (0 until minOf(buttons.length(), MAX_BUTTONS)).mapNotNull { i ->
             val o = buttons.optJSONObject(i) ?: return@mapNotNull null
             val target = runCatching { SkipTarget.valueOf(o.optString("target")) }.getOrNull()
                 ?: return@mapNotNull null
@@ -73,5 +78,5 @@ object TaughtAppPort {
     }
 
     private fun JSONObject.optStringOrNull(key: String): String? =
-        if (isNull(key)) null else optString(key).trim().ifEmpty { null }
+        if (isNull(key)) null else optString(key).trim().take(MAX_STRING).ifEmpty { null }
 }

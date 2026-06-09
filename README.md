@@ -220,7 +220,8 @@ Auto-next is **off by default** everywhere.
 
 ### Sharing taught apps
 
-Every app you teach has a **Share** action on its card: it exports the app's
+Every app you've added yourself has a **Share** action on its card (built-ins
+ship with everyone already): it exports the app's
 approved skip buttons as a small JSON snippet via the system share sheet. Another
 user pastes it under *Add an app → Import shared* and gets the same buttons —
 after their own explicit import, and only for the one package the file names.
