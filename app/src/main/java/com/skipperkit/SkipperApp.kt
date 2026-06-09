@@ -8,6 +8,7 @@ import com.skipperkit.config.RemoteConfigSync
 import com.skipperkit.data.SettingsStore
 import com.skipperkit.discovery.DiscoveryRepository
 import com.skipperkit.settings.SettingsRepository
+import com.skipperkit.settings.TaughtAppsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,6 +48,14 @@ class SkipperApp : Application() {
             }
             DiscoveryRepository.onDismissedChanged = { keys ->
                 scope.launch { runCatching { store.saveDismissedDiscovered(keys) } }
+            }
+
+            // Restore taught apps and persist future changes.
+            runCatching {
+                TaughtAppsRepository.restore(store.loadTaughtApps())
+            }.onFailure { Log.w(TAG, "Could not load taught apps", it) }
+            TaughtAppsRepository.onChanged = { apps ->
+                scope.launch { runCatching { store.saveTaughtApps(apps) } }
             }
 
             // 2. Apply cached remote config, if any.
