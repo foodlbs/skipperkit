@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+}
+
+// Release signing is read from a gitignored keystore.properties (never committed).
+// When absent (CI, fresh clones), release builds are simply left unsigned.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
 
 android {
@@ -16,17 +25,32 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // Phase 2 uses this flag to gate the verbose node-tree inspector.
             buildConfigField("boolean", "DEBUG_NODE_INSPECTOR", "true")
-            // Prototype: log-only heuristic discovery on config misses.
+            // Verbose discovery candidate logging (diagnostic). Suggestions
+            // themselves are a user setting and ship in release too.
             buildConfigField("boolean", "DISCOVERY_ENGINE", "true")
         }
         release {
             isMinifyEnabled = false
             buildConfigField("boolean", "DEBUG_NODE_INSPECTOR", "false")
             buildConfigField("boolean", "DISCOVERY_ENGINE", "false")
+            if (keystorePropsFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

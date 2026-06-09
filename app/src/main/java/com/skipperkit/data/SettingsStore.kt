@@ -24,6 +24,7 @@ class SettingsStore(private val context: Context) {
     suspend fun loadUserSettings(defaults: UserSettings): UserSettings {
         val prefs = context.dataStore.data.first()
         val master = prefs[MASTER_ENABLED] ?: defaults.masterEnabled
+        val discoverySuggestions = prefs[DISCOVERY_SUGGESTIONS] ?: defaults.discoverySuggestions
         val apps = defaults.apps.mapValues { (pkg, d) ->
             AppToggles(
                 enabled = prefs[appKey(pkg, "enabled")] ?: d.enabled,
@@ -32,12 +33,13 @@ class SettingsStore(private val context: Context) {
                 autoNext = prefs[appKey(pkg, "autoNext")] ?: d.autoNext,
             )
         }
-        return UserSettings(masterEnabled = master, apps = apps)
+        return UserSettings(masterEnabled = master, apps = apps, discoverySuggestions = discoverySuggestions)
     }
 
     suspend fun saveUserSettings(settings: UserSettings) {
         context.dataStore.edit { prefs ->
             prefs[MASTER_ENABLED] = settings.masterEnabled
+            prefs[DISCOVERY_SUGGESTIONS] = settings.discoverySuggestions
             settings.apps.forEach { (pkg, t) ->
                 prefs[appKey(pkg, "enabled")] = t.enabled
                 prefs[appKey(pkg, "skipIntro")] = t.skipIntro
@@ -120,6 +122,7 @@ class SettingsStore(private val context: Context) {
         private val Context.dataStore by preferencesDataStore(name = "skipperkit_settings")
 
         private val MASTER_ENABLED = booleanPreferencesKey("master_enabled")
+        private val DISCOVERY_SUGGESTIONS = booleanPreferencesKey("discovery_suggestions")
         private val REMOTE_CONFIG_JSON = stringPreferencesKey("remote_config_json")
         private val REMOTE_CONFIG_URL = stringPreferencesKey("remote_config_url")
         private val DISCOVERY_APPROVED = stringPreferencesKey("discovery_approved")

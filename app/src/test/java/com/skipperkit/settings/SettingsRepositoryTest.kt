@@ -14,10 +14,18 @@ class SettingsRepositoryTest {
     fun reset() {
         // Restore defaults so tests don't leak state through the singleton.
         SettingsRepository.setMaster(true)
+        SettingsRepository.setDiscoverySuggestions(true)
         SettingsRepository.setAppEnabled(netflix, true)
         SettingsRepository.setFeature(netflix, "skipIntro", true)
         SettingsRepository.setFeature(netflix, "skipRecap", true)
         SettingsRepository.setFeature(netflix, "autoNext", false)
+    }
+
+    @Test
+    fun `discovery suggestions default on and can be toggled`() {
+        assertTrue(SettingsRepository.discoverySuggestionsEnabled())
+        SettingsRepository.setDiscoverySuggestions(false)
+        assertFalse(SettingsRepository.discoverySuggestionsEnabled())
     }
 
     @Test

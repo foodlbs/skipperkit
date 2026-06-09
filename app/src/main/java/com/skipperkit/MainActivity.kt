@@ -107,6 +107,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         ),
         apps = apps,
         suggestions = suggestions,
+        discoverySuggestionsEnabled = userSettings.discoverySuggestions,
     )
 
     SkipperKitSettingsScreen(
@@ -117,6 +118,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         onOpenAccessibilitySettings = onOpenAccessibilitySettings,
         onApproveSuggestion = DiscoveryRepository::approve,
         onDismissSuggestion = DiscoveryRepository::dismiss,
+        onDiscoveryToggle = SettingsRepository::setDiscoverySuggestions,
     )
 }
 
