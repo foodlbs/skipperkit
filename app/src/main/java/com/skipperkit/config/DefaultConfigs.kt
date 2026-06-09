@@ -80,6 +80,13 @@ object DefaultConfigs {
     )
 
     // ── Label-only tier (unverified — view-id capture wanted) ──────────────
+    //
+    // Provenance: package names were verified to exist via their Play Store
+    // listings (2026-06-09), NOT from a `pm list packages` run on a device with
+    // the app installed. Label strings are English-language inference from the
+    // verified tier's naming ("Skip Intro"/"Skip Recap"), not captured dumps —
+    // a wrong label means the entry silently never matches. Device-verified
+    // corrections welcome (see CONTRIBUTING).
 
     val CRUNCHYROLL = labelOnly(
         packageName = "com.crunchyroll.crunchyroid",
@@ -94,6 +101,10 @@ object DefaultConfigs {
 
     val PEACOCK = labelOnly(packageName = "com.peacocktv.peacockandroid")
 
+    // Apple ships ONE package for phones, tablets, and TV; the "androidtv"
+    // substring is Apple's own naming, not the Android TV platform (which
+    // stays out of scope). Confirmed via Apple's Feb 2025 Android announcement
+    // and the Play listing.
     val APPLE_TV = labelOnly(packageName = "com.apple.atve.androidtv.appletv")
 
     val ALL: List<AppConfig> = listOf(
