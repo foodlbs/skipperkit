@@ -2,6 +2,7 @@ package com.skipperkit.ui.settings
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,7 +51,10 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,7 +97,11 @@ data class AppUiState(
     val skipRecap: Boolean,
     val autoNext: Boolean,
     val autoNextSupported: Boolean = true, // false where the app exposes no usable next id (Prime)
+    val removable: Boolean = false, // true for user-added apps
 )
+
+/** An installable app shown in the "add an app" picker. */
+data class InstalledAppUi(val packageName: String, val displayName: String)
 
 /** A skip button SkipperKit discovered that isn't configured yet, awaiting approval. */
 data class SuggestionUi(
@@ -108,6 +117,7 @@ data class SettingsUiState(
     val apps: List<AppUiState>,
     val suggestions: List<SuggestionUi> = emptyList(),
     val discoverySuggestionsEnabled: Boolean = true,
+    val installedApps: List<InstalledAppUi> = emptyList(),
 )
 
 /* Feature keys used by onFeatureToggle. */
@@ -247,6 +257,9 @@ fun SkipperKitSettingsScreen(
     onApproveSuggestion: (String) -> Unit = {},
     onDismissSuggestion: (String) -> Unit = {},
     onDiscoveryToggle: (Boolean) -> Unit = {},
+    onRemoveApp: (packageName: String) -> Unit = {},
+    onAddApp: (packageName: String, displayName: String) -> Unit = { _, _ -> },
+    onLoadInstalledApps: () -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier,
@@ -304,6 +317,15 @@ fun SkipperKitSettingsScreen(
                     masterEnabled = state.masterEnabled,
                     onAppEnabledToggle = onAppEnabledToggle,
                     onFeatureToggle = onFeatureToggle,
+                    onRemoveApp = onRemoveApp,
+                )
+            }
+
+            item("add-app") {
+                AddAppCard(
+                    installed = state.installedApps,
+                    onExpand = onLoadInstalledApps,
+                    onPick = onAddApp,
                 )
             }
 
@@ -627,6 +649,7 @@ private fun AppCard(
     masterEnabled: Boolean,
     onAppEnabledToggle: (String, Boolean) -> Unit,
     onFeatureToggle: (String, String, Boolean) -> Unit,
+    onRemoveApp: (String) -> Unit = {},
 ) {
     val cs = MaterialTheme.colorScheme
     val subActive = masterEnabled && app.enabled
@@ -661,6 +684,11 @@ private fun AppCard(
                 enabled = masterEnabled,
                 onCheckedChange = { onAppEnabledToggle(app.packageName, it) },
             )
+            if (app.removable) {
+                TextButton(onClick = { onRemoveApp(app.packageName) }) {
+                    Text("Remove")
+                }
+            }
         }
 
         // Sub-toggles: always present; disabled/greyed when the app (or master) is off.
@@ -691,6 +719,46 @@ private fun AppCard(
                 enabled = subActive && app.autoNextSupported,
                 onCheckedChange = { onFeatureToggle(app.packageName, SkipperFeature.AUTO_NEXT, it) },
             )
+        }
+    }
+}
+
+@Composable
+private fun AddAppCard(
+    installed: List<InstalledAppUi>,
+    onExpand: () -> Unit,
+    onPick: (String, String) -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    var open by remember { mutableStateOf(false) }
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = cs.surfaceContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(18.dp)) {
+            Text("Add an app", color = cs.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Text(
+                "Adding lets SkipperKit read this app's on-screen text to find skip buttons. " +
+                    "It never captures video or sends anything off-device. Manage anytime.",
+                color = cs.onSurfaceVariant, fontSize = 12.5.sp, lineHeight = 17.sp,
+            )
+            Spacer(Modifier.height(12.dp))
+            FilledTonalButton(onClick = { open = true; onExpand() }) { Text("Choose an app") }
+            if (open) {
+                Spacer(Modifier.height(8.dp))
+                installed.forEach { app ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(app.packageName, app.displayName); open = false }
+                            .padding(vertical = 12.dp),
+                    ) {
+                        Text(app.displayName, color = cs.onSurface, fontSize = 15.sp)
+                    }
+                }
+            }
         }
     }
 }
