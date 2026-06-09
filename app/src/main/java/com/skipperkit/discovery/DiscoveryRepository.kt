@@ -31,6 +31,7 @@ object DiscoveryRepository {
      * pending. Next-episode candidates reach here only after the DiscoveryEngine
      * has vetted them as end-of-episode cards (never the control-bar button).
      */
+    @Synchronized
     fun propose(entry: DiscoveredEntry) {
         val key = entry.key
         if (approvedByKey.containsKey(key) || dismissedKeys.contains(key)) return
@@ -38,6 +39,7 @@ object DiscoveryRepository {
         _pending.value = _pending.value + entry
     }
 
+    @Synchronized
     fun approve(key: String) {
         val entry = _pending.value.firstOrNull { it.key == key } ?: return
         _pending.value = _pending.value.filterNot { it.key == key }
@@ -46,9 +48,22 @@ object DiscoveryRepository {
         onApprovedChanged?.invoke(approvedByKey.values.toList())
     }
 
+    @Synchronized
     fun dismiss(key: String) {
         _pending.value = _pending.value.filterNot { it.key == key }
         if (dismissedKeys.add(key)) onDismissedChanged?.invoke(dismissedKeys.toSet())
+    }
+
+    @Synchronized
+    fun removeForPackage(packageName: String) {
+        _pending.value = _pending.value.filterNot { it.packageName == packageName }
+        val approvedRemoved = approvedByKey.values.removeAll { it.packageName == packageName }
+        val dismissedRemoved = dismissedKeys.removeAll { it.startsWith("$packageName|") }
+        if (approvedRemoved) {
+            ConfigRepository.setDiscovered(approvedByKey.values.toList())
+            onApprovedChanged?.invoke(approvedByKey.values.toList())
+        }
+        if (dismissedRemoved) onDismissedChanged?.invoke(dismissedKeys.toSet())
     }
 
     /** Re-hydrate persisted decisions on startup (before wiring listeners). */

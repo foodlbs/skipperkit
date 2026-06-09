@@ -15,7 +15,11 @@ data class DiscoveredEntry(
     val viewId: String?,
     val label: String?,
 ) {
-    /** Stable identity for dedupe / approved / dismissed sets. */
+    /**
+     * Stable identity for dedupe / approved / dismissed sets.
+     * [packageName] is always the prefix up to the first `|`, so callers can match
+     * all keys for a package with `key.startsWith("$packageName|")`.
+     */
     val key: String get() = "$packageName|$target|${viewId ?: "label:${label?.lowercase()}"}"
 
     val displayLabel: String

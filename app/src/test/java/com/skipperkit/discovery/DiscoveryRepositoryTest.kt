@@ -19,6 +19,7 @@ class DiscoveryRepositoryTest {
         DiscoveryRepository.onApprovedChanged = null
         DiscoveryRepository.onDismissedChanged = null
         ConfigRepository.setDiscovered(emptyList())
+        ConfigRepository.setTaughtApps(emptyList())
     }
 
     private fun introByViewId(id: String) =
@@ -99,5 +100,24 @@ class DiscoveryRepositoryTest {
         DiscoveryRepository.approve(entry.key)
         DiscoveryRepository.propose(entry)
         assertFalse(DiscoveryRepository.pending.value.any { it.key == entry.key })
+    }
+
+    @Test
+    fun `removeForPackage clears pending, approved, and dismissed for that package`() {
+        val hbo = "com.hbo.hbonow"
+        val intro = DiscoveredEntry(hbo, SkipTarget.SKIP_INTRO, viewId = "a/b", label = null)
+        val recap = DiscoveredEntry(hbo, SkipTarget.SKIP_RECAP, viewId = "c/d", label = null)
+        DiscoveryRepository.propose(intro)
+        DiscoveryRepository.approve(intro.key)   // intro now approved
+        DiscoveryRepository.propose(recap)
+        DiscoveryRepository.dismiss(recap.key)   // recap now dismissed
+
+        DiscoveryRepository.removeForPackage(hbo)
+
+        // Both the approved and the dismissed entries are forgotten, so both can be
+        // proposed again (neither is suppressed).
+        DiscoveryRepository.propose(intro)
+        DiscoveryRepository.propose(recap)
+        assertEquals(2, DiscoveryRepository.pending.value.size)
     }
 }
