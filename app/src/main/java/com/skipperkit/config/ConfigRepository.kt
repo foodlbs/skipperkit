@@ -98,6 +98,8 @@ object ConfigRepository {
                         nextEpisodeViewIds = c.nextEpisodeViewIds.appendIfPresent(e.viewId),
                         nextEpisodeLabels = c.nextEpisodeLabels.appendIfPresent(e.label),
                     )
+                    // Custom buttons are managed separately via CustomButtonsRepository.
+                    SkipTarget.CUSTOM -> c
                 }
             }
             c
