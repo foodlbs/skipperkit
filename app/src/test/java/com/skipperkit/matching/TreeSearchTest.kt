@@ -1,5 +1,6 @@
 package com.skipperkit.matching
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -61,5 +62,27 @@ class TreeSearchTest {
         val nonClickableParent = FakeNode(children = listOf(text))
         assertNull(TreeSearch.firstClickableSelfOrAncestor(text))
         assertTrue(!nonClickableParent.isClickable)
+    }
+
+    @Test
+    fun `forEach visits every node in the tree`() {
+        val leaf1 = FakeNode(text = "a")
+        val leaf2 = FakeNode(text = "b")
+        val mid = FakeNode(text = "mid", children = listOf(leaf1))
+        val root = FakeNode(children = listOf(mid, leaf2))
+
+        val visited = mutableListOf<String?>()
+        TreeSearch.forEach(root) { visited += it.text }
+
+        // root (null), mid, leaf1, leaf2 — depth-first
+        assertEquals(listOf(null, "mid", "a", "b"), visited)
+    }
+
+    @Test
+    fun `forEach on a single leaf visits just that node`() {
+        val leaf = FakeNode(text = "solo")
+        val visited = mutableListOf<String?>()
+        TreeSearch.forEach(leaf) { visited += it.text }
+        assertEquals(listOf("solo"), visited)
     }
 }
