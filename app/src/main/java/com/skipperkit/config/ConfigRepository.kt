@@ -17,6 +17,7 @@ object ConfigRepository {
     private var remoteOverride: List<AppConfig> = emptyList()
     private var discovered: List<DiscoveredEntry> = emptyList()
     private var taughtPackages: List<String> = emptyList()
+    private var customButtons: Map<String, List<CustomButton>> = emptyMap()
 
     private val _configs = MutableStateFlow(DefaultConfigs.ALL)
     val configs: StateFlow<List<AppConfig>> = _configs.asStateFlow()
@@ -47,12 +48,22 @@ object ConfigRepository {
         recompute()
     }
 
+    /** Replace the per-package user-taught custom buttons. */
+    @Synchronized
+    fun setCustomButtons(buttons: Map<String, List<CustomButton>>) {
+        customButtons = buttons
+        recompute()
+    }
+
     private fun recompute() {
         val base = overlayRemote(DefaultConfigs.ALL, remoteOverride)
         val withTaught = base + taughtPackages
             .filter { pkg -> base.none { it.packageName == pkg } }
             .map { stubConfig(it) }
-        _configs.value = applyDiscovered(withTaught, discovered)
+        val withDiscovered = applyDiscovered(withTaught, discovered)
+        _configs.value = withDiscovered.map { config ->
+            config.copy(customButtons = customButtons[config.packageName] ?: emptyList())
+        }
     }
 
     private fun stubConfig(packageName: String): AppConfig = AppConfig(

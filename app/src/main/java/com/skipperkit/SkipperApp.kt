@@ -7,6 +7,7 @@ import com.skipperkit.config.RemoteConfigParser
 import com.skipperkit.config.RemoteConfigSync
 import com.skipperkit.data.SettingsStore
 import com.skipperkit.discovery.DiscoveryRepository
+import com.skipperkit.settings.CustomButtonsRepository
 import com.skipperkit.settings.SettingsRepository
 import com.skipperkit.settings.TaughtAppsRepository
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +39,10 @@ class SkipperApp : Application() {
                 TaughtAppsRepository.restore(store.loadTaughtApps())
             }.onFailure { Log.w(TAG, "Could not load taught apps", it) }
 
+            runCatching {
+                CustomButtonsRepository.restore(store.loadCustomButtons())
+            }.onFailure { Log.w(TAG, "Could not load custom buttons", it) }
+
             // 2. Load user settings using the current SettingsRepository state (which now includes
             //    taught packages) as defaults, so persisted taught-app toggles are restored.
             runCatching {
@@ -53,6 +58,9 @@ class SkipperApp : Application() {
             // 4. Wire persistence listeners.
             TaughtAppsRepository.onChanged = { apps ->
                 scope.launch { runCatching { store.saveTaughtApps(apps) } }
+            }
+            CustomButtonsRepository.onChanged = { buttons ->
+                scope.launch { runCatching { store.saveCustomButtons(buttons) } }
             }
             DiscoveryRepository.onApprovedChanged = { entries ->
                 scope.launch { runCatching { store.saveApprovedDiscovered(entries) } }
