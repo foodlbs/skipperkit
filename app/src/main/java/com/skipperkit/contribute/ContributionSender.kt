@@ -9,10 +9,12 @@ import javax.net.ssl.HttpsURLConnection
  */
 object ContributionSender {
 
+    enum class Result { SENT, RATE_LIMITED, FAILED }
+
     private const val TIMEOUT_MS = 8_000
 
-    fun send(urlString: String, jsonBody: String): Boolean {
-        if (!urlString.startsWith("https://")) return false
+    fun send(urlString: String, jsonBody: String): Result {
+        if (!urlString.startsWith("https://")) return Result.FAILED
         return runCatching {
             val conn = URL(urlString).openConnection() as HttpsURLConnection
             try {
@@ -22,10 +24,14 @@ object ContributionSender {
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.outputStream.use { it.write(jsonBody.toByteArray(Charsets.UTF_8)) }
-                conn.responseCode in 200..299
+                when {
+                    conn.responseCode in 200..299 -> Result.SENT
+                    conn.responseCode == 429 -> Result.RATE_LIMITED
+                    else -> Result.FAILED
+                }
             } finally {
                 conn.disconnect()
             }
-        }.getOrDefault(false)
+        }.getOrDefault(Result.FAILED)
     }
 }

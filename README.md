@@ -232,10 +232,15 @@ can never arrive via import.
 
 When SkipperKit discovers a working skip button that isn't in the shared config,
 you can send it upstream directly from the app — after approving a suggestion
-("Send this to the project?") or via **Contribute** on the app's card. The first
-send shows you the exact JSON; after that it's one tap. Submissions become public
-pull requests on [skipperkit-config](https://github.com/foodlbs/skipperkit-config)
-that a maintainer reviews before they reach anyone's device.
+("Send this to the project?"), via **Contribute** on the app's card, or via
+**Contribute all** next to the Apps header, which sends every app you've taught
+or approved buttons for in one go. Taught custom buttons are included alongside
+skip buttons. The first send shows you the exact JSON; after that it's one tap.
+Submissions become public pull requests on
+[skipperkit-config](https://github.com/foodlbs/skipperkit-config) that a
+maintainer reviews before they reach anyone's device — and contributed custom
+buttons additionally arrive **disabled** in the shared config until the
+maintainer deliberately enables them.
 
 ### Beyond streaming: teach any button
 
@@ -367,8 +372,9 @@ That's all. Specifically, it does **not**:
 - use root or ADB,
 - send your viewing data anywhere. (Two network calls exist, both HTTPS: an outbound
   GET for the button-configuration file, and — only when you explicitly tap
-  **Send/Contribute** — a POST containing a button's id/label, the streaming app's
-  version, SkipperKit's version, and your language code. Never device identifiers,
+  **Send/Contribute/Contribute all** — a POST per app containing button ids/labels,
+  taught custom buttons' names and ids/labels, the streaming app's version,
+  SkipperKit's version, and your language code. Never device identifiers,
   never anything about what you watch.)
 
 It interacts solely with the accessibility tree and native UI controls — the same

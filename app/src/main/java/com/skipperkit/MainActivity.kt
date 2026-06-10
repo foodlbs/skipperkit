@@ -139,17 +139,20 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         pickerScope.launch {
             try {
                 // Concurrent sends: worst case is one 8 s timeout, not payloads × 8 s.
-                val sent = withContext(Dispatchers.IO) {
+                val results = withContext(Dispatchers.IO) {
                     payloads.map { p ->
                         async { ContributionSender.send(SettingsStore.CONTRIBUTION_URL, p) }
-                    }.awaitAll().count { it }
+                    }.awaitAll()
                 }
+                val sent = results.count { it == ContributionSender.Result.SENT }
                 Toast.makeText(
                     context,
                     when {
-                        sent == 0 -> "Couldn't send — try again later"
-                        sent < payloads.size -> "Sent $sent of ${payloads.size} — thank you!"
-                        else -> "Sent — thank you!"
+                        sent == payloads.size -> "Sent — thank you!"
+                        sent > 0 -> "Sent $sent of ${payloads.size} — thank you!"
+                        results.any { it == ContributionSender.Result.RATE_LIMITED } ->
+                            "Daily contribution limit reached — try again tomorrow"
+                        else -> "Couldn't send — try again later"
                     },
                     Toast.LENGTH_SHORT,
                 ).show()
