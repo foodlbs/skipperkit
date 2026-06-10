@@ -223,7 +223,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         },
         onExportApp = { pkg ->
             val app = taughtApps.firstOrNull { it.packageName == pkg } ?: TaughtApp(pkg, displayNameFor(pkg))
-            val json = TaughtAppPort.export(app, DiscoveryRepository.approvedForPackage(pkg))
+            val json = TaughtAppPort.export(app, DiscoveryRepository.approvedForPackage(pkg), customButtonsMap[pkg] ?: emptyList())
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_SUBJECT, "SkipperKit config: ${app.displayName}")
@@ -240,6 +240,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
                     TaughtAppsRepository.add(shared.app)
                 }
                 DiscoveryRepository.addApproved(shared.entries)
+                shared.customButtons.forEach { CustomButtonsRepository.add(shared.app.packageName, it) }
             }
             shared != null
         },

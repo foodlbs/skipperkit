@@ -1,5 +1,6 @@
 package com.skipperkit.settings
 
+import com.skipperkit.config.CustomButton
 import com.skipperkit.config.SkipTarget
 import com.skipperkit.discovery.DiscoveredEntry
 import org.junit.Assert.assertEquals
@@ -15,6 +16,12 @@ class TaughtAppPortTest {
     )
     private val recap = DiscoveredEntry(
         "com.example.player", SkipTarget.SKIP_RECAP, viewId = null, label = "Skip Recap",
+    )
+    private val customButton = CustomButton(
+        key = "com.example.player:id/dismiss",
+        name = "Dismiss Rating",
+        viewIds = listOf("com.example.player:id/dismiss"),
+        labels = emptyList(),
     )
 
     @Test
@@ -95,8 +102,71 @@ class TaughtAppPortTest {
     }
 
     @Test
-    fun `unknown future format version is rejected`() {
-        val handCrafted = """{"skipperkitTaughtApp":2,"packageName":"com.example.player","buttons":[]}"""
-        assertNull(TaughtAppPort.parse(handCrafted))
+    fun `version 2 is accepted and version 3 is rejected`() {
+        val v2 = """{"skipperkitTaughtApp":2,"packageName":"com.example.player","displayName":"X","buttons":[]}"""
+        assertEquals("com.example.player", TaughtAppPort.parse(v2)!!.app.packageName)
+        val v3 = """{"skipperkitTaughtApp":3,"packageName":"com.example.player","buttons":[]}"""
+        assertNull(TaughtAppPort.parse(v3))
+    }
+
+    @Test
+    fun `v2 round-trip with one custom button`() {
+        val shared = TaughtAppPort.parse(
+            TaughtAppPort.export(app, listOf(intro), listOf(customButton)),
+        )!!
+        assertEquals(app, shared.app)
+        assertEquals(listOf(intro), shared.entries)
+        assertEquals(1, shared.customButtons.size)
+        val cb = shared.customButtons.single()
+        assertEquals("Dismiss Rating", cb.name)
+        assertEquals(listOf("com.example.player:id/dismiss"), cb.viewIds)
+        assertTrue(cb.labels.isEmpty())
+        assertEquals(true, cb.enabled)
+    }
+
+    @Test
+    fun `v1 file parses with empty custom buttons`() {
+        val v1 = """
+            {"skipperkitTaughtApp":1,"packageName":"com.example.player","displayName":"Example Player",
+             "buttons":[{"target":"SKIP_INTRO","viewId":"com.example.player:id/skip"}]}
+        """.trimIndent()
+        val shared = TaughtAppPort.parse(v1)!!
+        assertTrue(shared.customButtons.isEmpty())
+        assertEquals(listOf(intro), shared.entries)
+    }
+
+    @Test
+    fun `incoming key field is ignored and recomputed`() {
+        val json = """
+            {"skipperkitTaughtApp":2,"packageName":"com.example.player","displayName":"X",
+             "buttons":[],
+             "customButtons":[{"key":"injected-key","name":"Foo","viewId":"com.example.player:id/foo","enabled":true}]}
+        """.trimIndent()
+        val shared = TaughtAppPort.parse(json)!!
+        assertEquals("com.example.player:id/foo", shared.customButtons.single().key)
+    }
+
+    @Test
+    fun `custom button without viewId and label is dropped`() {
+        val json = """
+            {"skipperkitTaughtApp":2,"packageName":"com.example.player","displayName":"X",
+             "buttons":[],
+             "customButtons":[{"name":"Bad","enabled":true},{"name":"Good","label":"press me","enabled":true}]}
+        """.trimIndent()
+        val shared = TaughtAppPort.parse(json)!!
+        assertEquals(1, shared.customButtons.size)
+        assertEquals("Good", shared.customButtons.single().name)
+    }
+
+    @Test
+    fun `more than 20 custom buttons are capped`() {
+        val items = (0 until 30).joinToString(",") {
+            """{"name":"Btn$it","viewId":"com.example.player:id/btn$it","enabled":true}"""
+        }
+        val json = """
+            {"skipperkitTaughtApp":2,"packageName":"com.example.player","displayName":"X",
+             "buttons":[],"customButtons":[$items]}
+        """.trimIndent()
+        assertEquals(20, TaughtAppPort.parse(json)!!.customButtons.size)
     }
 }

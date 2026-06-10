@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.skipperkit.BuildConfig
+import com.skipperkit.config.SkipTarget
 import com.skipperkit.discovery.DiscoveredEntry
 import com.skipperkit.discovery.DiscoveryEngine
 import com.skipperkit.discovery.DiscoveryRepository
@@ -110,10 +111,15 @@ class SkipAccessibilityService : AccessibilityService() {
         }
 
         when (result) {
-            is SkipEngine.Result.Clicked ->
-                Log.i(TAG, "Clicked ${result.target} in $packageName")
+            is SkipEngine.Result.Clicked -> {
+                val label = if (result.target == SkipTarget.CUSTOM && result.customName != null)
+                    "CUSTOM \"${result.customName}\"" else result.target.toString()
+                Log.i(TAG, "Clicked $label in $packageName")
+            }
             is SkipEngine.Result.NeedsGesture -> {
-                Log.i(TAG, "No clickable ancestor for ${result.target}; tapping via gesture")
+                val label = if (result.target == SkipTarget.CUSTOM && result.customName != null)
+                    "CUSTOM \"${result.customName}\"" else result.target.toString()
+                Log.i(TAG, "No clickable ancestor for $label; tapping via gesture")
                 dispatchTap(result.point)
             }
             is SkipEngine.Result.NoMatch -> maybeRunDiscovery(packageName, view)

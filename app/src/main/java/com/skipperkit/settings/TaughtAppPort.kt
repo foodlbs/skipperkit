@@ -1,12 +1,17 @@
 package com.skipperkit.settings
 
+import com.skipperkit.config.CustomButton
 import com.skipperkit.config.SkipTarget
 import com.skipperkit.discovery.DiscoveredEntry
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** A taught app plus its approved skip buttons, as shared between users. */
-data class SharedTaughtApp(val app: TaughtApp, val entries: List<DiscoveredEntry>)
+/** A taught app plus its approved skip buttons and custom buttons, as shared between users. */
+data class SharedTaughtApp(
+    val app: TaughtApp,
+    val entries: List<DiscoveredEntry>,
+    val customButtons: List<CustomButton> = emptyList(),
+)
 
 /**
  * Serializes a taught app (and its user-approved skip buttons) to a small JSON
@@ -22,8 +27,9 @@ data class SharedTaughtApp(val app: TaughtApp, val entries: List<DiscoveredEntry
 object TaughtAppPort {
 
     private const val FORMAT_KEY = "skipperkitTaughtApp"
-    private const val FORMAT_VERSION = 1
+    private const val FORMAT_VERSION = 2
     private const val MAX_DISPLAY_NAME = 50
+    private const val MAX_CUSTOM_NAME = 50
 
     // A hand-taught app has a handful of buttons; a crafted file must not be able
     // to flood the approved set or the config singleton with unbounded data.
@@ -32,7 +38,11 @@ object TaughtAppPort {
 
     private val PACKAGE_REGEX = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")
 
-    fun export(app: TaughtApp, entries: List<DiscoveredEntry>): String =
+    fun export(
+        app: TaughtApp,
+        entries: List<DiscoveredEntry>,
+        customButtons: List<CustomButton> = emptyList(),
+    ): String =
         JSONObject()
             .put(FORMAT_KEY, FORMAT_VERSION)
             .put("packageName", app.packageName)
@@ -52,12 +62,27 @@ object TaughtAppPort {
                         }
                 },
             )
+            .put(
+                "customButtons",
+                JSONArray().apply {
+                    customButtons.forEach { b ->
+                        put(
+                            JSONObject()
+                                .put("name", b.name)
+                                .put("viewId", b.viewIds.firstOrNull() ?: JSONObject.NULL)
+                                .put("label", b.labels.firstOrNull() ?: JSONObject.NULL)
+                                .put("enabled", b.enabled),
+                        )
+                    }
+                },
+            )
             .toString(2)
 
     /** Returns null when [json] is not a valid shared taught app. */
     fun parse(json: String): SharedTaughtApp? {
         val root = runCatching { JSONObject(json) }.getOrNull() ?: return null
-        if (root.optInt(FORMAT_KEY) != FORMAT_VERSION) return null
+        val version = root.optInt(FORMAT_KEY)
+        if (version < 1 || version > FORMAT_VERSION) return null
         val packageName = root.optString("packageName").trim()
         if (!PACKAGE_REGEX.matches(packageName)) return null
         val displayName = root.optString("displayName").trim()
@@ -74,7 +99,30 @@ object TaughtAppPort {
             if (viewId == null && label == null) return@mapNotNull null
             DiscoveredEntry(packageName = packageName, target = target, viewId = viewId, label = label)
         }
-        return SharedTaughtApp(TaughtApp(packageName, displayName), entries)
+
+        val customButtons = if (version >= 2) {
+            val arr = root.optJSONArray("customButtons") ?: JSONArray()
+            (0 until minOf(arr.length(), MAX_BUTTONS)).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val name = o.optStringOrNull("name")?.take(MAX_CUSTOM_NAME) ?: return@mapNotNull null
+                val viewId = o.optStringOrNull("viewId")?.take(MAX_STRING)
+                val label = o.optStringOrNull("label")?.take(MAX_STRING)
+                if (viewId == null && label == null) return@mapNotNull null
+                val key = viewId ?: "label:${label!!.lowercase()}"
+                val enabled = if (o.has("enabled")) o.optBoolean("enabled", true) else true
+                CustomButton(
+                    key = key,
+                    name = name,
+                    viewIds = listOfNotNull(viewId),
+                    labels = listOfNotNull(label),
+                    enabled = enabled,
+                )
+            }
+        } else {
+            emptyList()
+        }
+
+        return SharedTaughtApp(TaughtApp(packageName, displayName), entries, customButtons)
     }
 
     private fun JSONObject.optStringOrNull(key: String): String? =
