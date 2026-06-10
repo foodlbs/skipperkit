@@ -87,6 +87,9 @@ object TeachModeRepository {
      * - [packageName] is not the armed package
      * - session has expired (auto-disarms)
      * - both [TeachCandidate.viewId] and [TeachCandidate.text] are null/blank
+     * - the view-id's resource prefix names a DIFFERENT package (a Chrome
+     *   Custom Tab's nodes leaking through the host app's events — such a
+     *   button could never be tapped later, its window is out of scope)
      * - the candidate's key is already recorded (dedupe)
      * - the list is already at [MAX_CANDIDATES]
      */
@@ -98,6 +101,10 @@ object TeachModeRepository {
         val hasViewId = !candidate.viewId.isNullOrBlank()
         val hasText = !candidate.text.isNullOrBlank()
         if (!hasViewId && !hasText) return
+
+        // Reject foreign resource ids (Compose testTags have no prefix and pass).
+        val idPrefix = candidate.viewId?.substringBefore(":id/", missingDelimiterValue = "")
+        if (!idPrefix.isNullOrEmpty() && idPrefix != packageName) return
 
         val key = candidate.key
         if (seenKeys.contains(key)) return

@@ -58,7 +58,7 @@ class TeachModeRepositoryTest {
     @Test
     fun `arm clears previous candidates`() {
         TeachModeRepository.arm(pkg)
-        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.x:id/skip", text = null))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
         assertEquals(1, TeachModeRepository.candidates.value.size)
 
         TeachModeRepository.arm(pkg)
@@ -68,7 +68,7 @@ class TeachModeRepositoryTest {
     @Test
     fun `arm for different package clears previous candidates`() {
         TeachModeRepository.arm(pkg)
-        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.x:id/skip", text = null))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
 
         TeachModeRepository.arm(other)
         assertEquals(0, TeachModeRepository.candidates.value.size)
@@ -79,7 +79,7 @@ class TeachModeRepositoryTest {
     @Test
     fun `disarm clears armed package and candidates`() {
         TeachModeRepository.arm(pkg)
-        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.x:id/skip", text = null))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
 
         TeachModeRepository.disarm()
 
@@ -93,13 +93,13 @@ class TeachModeRepositoryTest {
     @Test
     fun `offer for non-armed package is ignored`() {
         TeachModeRepository.arm(pkg)
-        TeachModeRepository.offer(other, TeachCandidate(viewId = "com.x:id/skip", text = null))
+        TeachModeRepository.offer(other, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
         assertEquals(0, TeachModeRepository.candidates.value.size)
     }
 
     @Test
     fun `offer when nothing is armed is ignored`() {
-        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.x:id/skip", text = null))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
         assertEquals(0, TeachModeRepository.candidates.value.size)
     }
 
@@ -127,9 +127,25 @@ class TeachModeRepositoryTest {
     }
 
     @Test
+    fun `offer with a foreign package's resource id is rejected`() {
+        // A Chrome Custom Tab surfaced inside the armed app: its nodes carry
+        // chrome ids that could never be tapped later (window out of scope).
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.android.chrome:id/close_button", text = "Close tab"))
+        assertEquals(0, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
+    fun `offer with a prefix-free compose testTag is accepted`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "someComposeTestTag", text = null))
+        assertEquals(1, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
     fun `offer with valid viewId but null text is accepted`() {
         TeachModeRepository.arm(pkg)
-        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.x:id/skip", text = null))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
         assertEquals(1, TeachModeRepository.candidates.value.size)
     }
 
@@ -138,8 +154,8 @@ class TeachModeRepositoryTest {
     @Test
     fun `offer deduplicates by key`() {
         TeachModeRepository.arm(pkg)
-        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.x:id/skip", text = null))
-        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.x:id/skip", text = "any"))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = "any"))
         assertEquals(1, TeachModeRepository.candidates.value.size)
     }
 
@@ -172,7 +188,7 @@ class TeachModeRepositoryTest {
         TeachModeRepository.arm(pkg)
         fakeTime = TeachModeRepository.AUTO_DISARM_MS + 1
 
-        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.x:id/skip", text = null))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
 
         assertFalse(TeachModeRepository.isArmedFor(pkg))
         assertNull(TeachModeRepository.armedPackage.value)
@@ -199,7 +215,7 @@ class TeachModeRepositoryTest {
         TeachModeRepository.arm(pkg)
         fakeTime = TeachModeRepository.AUTO_DISARM_MS - 1
 
-        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.x:id/skip", text = null))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
         assertEquals(1, TeachModeRepository.candidates.value.size)
     }
 
@@ -235,8 +251,8 @@ class TeachModeRepositoryTest {
 
     @Test
     fun `key prefers viewId over text label`() {
-        val c = TeachCandidate(viewId = "com.x:id/skip", text = "SKIP INTRO")
-        assertEquals("com.x:id/skip", c.key)
+        val c = TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = "SKIP INTRO")
+        assertEquals("com.example.teachtest.one:id/skip", c.key)
     }
 
     @Test

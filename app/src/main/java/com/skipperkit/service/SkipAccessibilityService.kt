@@ -99,6 +99,13 @@ class SkipAccessibilityService : AccessibilityService() {
             null
         } ?: return
 
+        // A scoped app can surface another app's window (Chrome Custom Tabs are
+        // the common case) while events stay attributed to the host. Never
+        // search, click, or teach from a window owned by a different package —
+        // it's outside the user-approved scope and its ids are unusable anyway.
+        val windowPackage = root.packageName?.toString()
+        if (windowPackage != null && windowPackage != packageName) return
+
         val view = AccessibilityNodeView(root)
         maybeCollectTeachCandidates(packageName, view)
         val result = try {
