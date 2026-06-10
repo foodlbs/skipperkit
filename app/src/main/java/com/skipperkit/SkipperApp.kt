@@ -3,6 +3,7 @@ package com.skipperkit
 import android.app.Application
 import android.util.Log
 import com.skipperkit.config.ConfigRepository
+import com.skipperkit.config.DefaultConfigs
 import com.skipperkit.config.RemoteConfigParser
 import com.skipperkit.config.RemoteConfigSync
 import com.skipperkit.data.SettingsStore
@@ -35,8 +36,15 @@ class SkipperApp : Application() {
 
         scope.launch {
             // 1. Restore taught apps first — this seeds SettingsRepository entries via ensureApp.
+            // Migration: an app the user taught before it became a BUILT-IN would be
+            // double-tracked (and "Remove" would wipe its toggles), so silently drop
+            // it from the taught list. Its approved discoveries, custom buttons, and
+            // toggles are keyed by package and survive untouched.
             runCatching {
-                TaughtAppsRepository.restore(store.loadTaughtApps())
+                val taught = store.loadTaughtApps()
+                    .filterNot { DefaultConfigs.forPackage(it.packageName) != null }
+                TaughtAppsRepository.restore(taught)
+                store.saveTaughtApps(taught)
             }.onFailure { Log.w(TAG, "Could not load taught apps", it) }
 
             runCatching {

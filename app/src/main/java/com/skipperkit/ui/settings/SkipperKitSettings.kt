@@ -171,17 +171,31 @@ private val LightSemantic = SkipperSemanticColors(
 private val LocalSkipperSemanticColors =
     staticCompositionLocalOf { DarkSemantic }
 
-/* Brand accents — used as small leading accents only, never as backgrounds. */
+/* Brand accents — used as small leading accents only, never as backgrounds.
+ * Shown when the app isn't installed (no launcher icon to load); approximate
+ * brand colors keep the letter tiles distinguishable. */
 private object Brand {
     val Netflix = Color(0xFFE50914)
     val Prime = Color(0xFF00A8E1)
     val Disney = Color(0xFF1F4FE0)
+    val Crunchyroll = Color(0xFFF47521)
+    val HboMax = Color(0xFF991EFF)
+    val Hulu = Color(0xFF1CE783)
+    val Paramount = Color(0xFF0064FF)
+    val Peacock = Color(0xFFFFC900)
+    val AppleTv = Color(0xFFD7D9DC)
 
     fun accentFor(packageName: String, displayName: String): Pair<Color, Char> =
         when (packageName) {
             "com.netflix.mediaclient" -> Netflix to 'N'
             "com.amazon.avod.thirdpartyclient" -> Prime to 'P'
             "com.disney.disneyplus" -> Disney to 'D'
+            "com.crunchyroll.crunchyroid" -> Crunchyroll to 'C'
+            "com.wbd.stream" -> HboMax to 'M'
+            "com.hulu.plus" -> Hulu to 'H'
+            "com.cbs.app" -> Paramount to 'P'
+            "com.peacocktv.peacockandroid" -> Peacock to 'P'
+            "com.apple.atve.androidtv.appletv" -> AppleTv to 'A'
             else -> Color(0xFF8E9099) to (displayName.firstOrNull() ?: '?')
         }
 }
@@ -774,7 +788,7 @@ private fun AppCard(
         // Header: brand mark + name + per-app enable switch
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 2.dp),
         ) {
             BrandMark(app)
             Spacer(Modifier.width(14.dp))
@@ -796,6 +810,15 @@ private fun AppCard(
                 enabled = masterEnabled,
                 onCheckedChange = { onAppEnabledToggle(app.packageName, it) },
             )
+        }
+
+        // Action strip: its own row, so a long app name and 1-4 actions never
+        // fight for header width (inline they crushed the name column).
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 10.dp, end = 10.dp),
+        ) {
             TextButton(onClick = { onTeachApp(app.packageName) }) {
                 Text("Teach")
             }
