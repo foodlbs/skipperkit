@@ -48,7 +48,10 @@ import com.skipperkit.ui.settings.SettingsUiState
 import com.skipperkit.ui.settings.SkipperKitSettingsScreen
 import com.skipperkit.ui.settings.SkipperKitTheme
 import com.skipperkit.ui.settings.SuggestionUi
+import com.skipperkit.config.SkipTarget
+import com.skipperkit.discovery.DiscoveredEntry
 import com.skipperkit.ui.settings.TeachCandidateUi
+import com.skipperkit.ui.settings.TeachKind
 import com.skipperkit.ui.settings.TeachNameDialog
 import java.util.Locale
 
@@ -283,16 +286,33 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         } else {
             TeachNameDialog(
                 candidate = TeachCandidateUi(candidate.key, candidate.viewId, candidate.text),
-                onConfirm = { name ->
-                    CustomButtonsRepository.add(
-                        armedPkg,
-                        CustomButton(
-                            key = candidate.key,
-                            name = name,
-                            viewIds = listOfNotNull(candidate.viewId),
-                            labels = if (candidate.viewId == null) listOfNotNull(candidate.text) else emptyList(),
-                        ),
-                    )
+                onConfirm = { kind, name ->
+                    when (kind) {
+                        TeachKind.OTHER -> CustomButtonsRepository.add(
+                            armedPkg,
+                            CustomButton(
+                                key = candidate.key,
+                                name = name,
+                                viewIds = listOfNotNull(candidate.viewId),
+                                labels = if (candidate.viewId == null) listOfNotNull(candidate.text) else emptyList(),
+                            ),
+                        )
+                        else -> {
+                            val target = if (kind == TeachKind.SKIP_INTRO) SkipTarget.SKIP_INTRO else SkipTarget.SKIP_RECAP
+                            DiscoveryRepository.addApproved(
+                                listOf(
+                                    DiscoveredEntry(
+                                        packageName = armedPkg,
+                                        target = target,
+                                        viewId = candidate.viewId,
+                                        label = if (candidate.viewId == null) candidate.text else null,
+                                    ),
+                                ),
+                            )
+                            // Taught a shareable skip button — offer to send it upstream.
+                            contributeOfferPkg = armedPkg
+                        }
+                    }
                     TeachModeRepository.disarm()
                     teachPickKey = null
                 },

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -121,6 +122,9 @@ data class SuggestionUi(
 )
 
 data class TeachCandidateUi(val key: String, val viewId: String?, val text: String?)
+
+/** What the user says a taught button is. Skip kinds join the discovery pool. */
+enum class TeachKind { SKIP_INTRO, SKIP_RECAP, OTHER }
 
 data class SettingsUiState(
     val masterEnabled: Boolean,
@@ -1003,13 +1007,21 @@ private fun CustomButtonRow(
 
 private val RISKY_LABEL = Regex("(?i)\\b(pay|buy|purchase|order|confirm|subscribe|delete|remove|send|transfer|checkout)\\b")
 
+private fun guessKind(text: String?): TeachKind = when {
+    text == null -> TeachKind.OTHER
+    Regex("(?i)skip.{0,3}(intro|opening)").containsMatchIn(text) -> TeachKind.SKIP_INTRO
+    Regex("(?i)skip.{0,3}recap").containsMatchIn(text) -> TeachKind.SKIP_RECAP
+    else -> TeachKind.OTHER
+}
+
 @Composable
 fun TeachNameDialog(
     candidate: TeachCandidateUi,
-    onConfirm: (name: String) -> Unit,
+    onConfirm: (TeachKind, String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
+    var kind by remember { mutableStateOf(guessKind(candidate.text)) }
     var name by remember { mutableStateOf(candidate.text ?: "") }
     var riskChecked by remember { mutableStateOf(false) }
     val riskySource = listOfNotNull(
@@ -1017,42 +1029,69 @@ fun TeachNameDialog(
         candidate.viewId?.substringAfterLast('/')?.replace('_', ' '),
     ).joinToString(" ")
     val isRisky = RISKY_LABEL.containsMatchIn(riskySource)
-    val canConfirm = name.isNotBlank() && (!isRisky || riskChecked)
+    val canConfirm = kind != TeachKind.OTHER || (name.isNotBlank() && (!isRisky || riskChecked))
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Name this button") },
         text = {
             Column {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { if (it.length <= 50) name = it },
-                    label = { Text("Button name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (isRisky) {
-                    Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = kind == TeachKind.SKIP_INTRO,
+                        onClick = { kind = TeachKind.SKIP_INTRO },
+                        label = { Text("Skip Intro") },
+                    )
+                    FilterChip(
+                        selected = kind == TeachKind.SKIP_RECAP,
+                        onClick = { kind = TeachKind.SKIP_RECAP },
+                        label = { Text("Skip Recap") },
+                    )
+                    FilterChip(
+                        selected = kind == TeachKind.OTHER,
+                        onClick = { kind = TeachKind.OTHER },
+                        label = { Text("Other") },
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                if (kind == TeachKind.OTHER) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { if (it.length <= 50) name = it },
+                        label = { Text("Button name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (isRisky) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "This looks like it could be a payment, confirmation, or destructive button. " +
+                                "SkipperKit would tap it automatically every time it appears.",
+                            color = cs.error,
+                            fontSize = 12.5.sp,
+                            lineHeight = 17.sp,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.Checkbox(
+                                checked = riskChecked,
+                                onCheckedChange = { riskChecked = it },
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("I understand the risk", color = cs.onSurface, fontSize = 13.sp)
+                        }
+                    }
+                } else {
                     Text(
-                        "This looks like it could be a payment, confirmation, or destructive button. " +
-                            "SkipperKit would tap it automatically every time it appears.",
-                        color = cs.error,
+                        "Will be tapped by this app's Skip toggle — and you can send it to the project so everyone benefits.",
+                        color = cs.onSurfaceVariant,
                         fontSize = 12.5.sp,
                         lineHeight = 17.sp,
                     )
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        androidx.compose.material3.Checkbox(
-                            checked = riskChecked,
-                            onCheckedChange = { riskChecked = it },
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("I understand the risk", color = cs.onSurface, fontSize = 13.sp)
-                    }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name.trim()) }, enabled = canConfirm) {
+            TextButton(onClick = { onConfirm(kind, name.trim()) }, enabled = canConfirm) {
                 Text("Confirm")
             }
         },
