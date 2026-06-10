@@ -32,18 +32,24 @@ import com.skipperkit.discovery.DiscoveryRepository
 import com.skipperkit.service.InstalledAppsProvider
 import com.skipperkit.service.ServiceRuntime
 import com.skipperkit.service.SkipAccessibilityService
+import com.skipperkit.config.CustomButton
+import com.skipperkit.settings.CustomButtonsRepository
 import com.skipperkit.settings.SettingsRepository
 import com.skipperkit.settings.TaughtApp
 import com.skipperkit.settings.TaughtAppPort
 import com.skipperkit.settings.TaughtAppsRepository
+import com.skipperkit.teach.TeachModeRepository
 import com.skipperkit.ui.settings.AppUiState
 import com.skipperkit.ui.settings.ContributionConsentDialog
+import com.skipperkit.ui.settings.CustomButtonUi
 import com.skipperkit.ui.settings.InstalledAppUi
 import com.skipperkit.ui.settings.ServiceStatus
 import com.skipperkit.ui.settings.SettingsUiState
 import com.skipperkit.ui.settings.SkipperKitSettingsScreen
 import com.skipperkit.ui.settings.SkipperKitTheme
 import com.skipperkit.ui.settings.SuggestionUi
+import com.skipperkit.ui.settings.TeachCandidateUi
+import com.skipperkit.ui.settings.TeachNameDialog
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -71,6 +77,9 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     val lastActivityMs by ServiceRuntime.lastActivityMs.collectAsState()
     val pendingSuggestions by DiscoveryRepository.pending.collectAsState()
     val taughtApps by TaughtAppsRepository.taughtApps.collectAsState()
+    val teachArmed by TeachModeRepository.armedPackage.collectAsState()
+    val teachCandidates by TeachModeRepository.candidates.collectAsState()
+    val customButtonsMap by CustomButtonsRepository.buttons.collectAsState()
     var installed by remember { mutableStateOf(emptyList<InstalledAppUi>()) }
     val provider = remember { InstalledAppsProvider(context) }
     val pickerScope = rememberCoroutineScope()
@@ -78,6 +87,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     var contributeOfferPkg by remember { mutableStateOf<String?>(null) }
     var consentPayload by remember { mutableStateOf<Pair<String, String>?>(null) } // pkg to payload
     var sendInFlight by remember { mutableStateOf(false) }
+    var teachPickKey by remember { mutableStateOf<String?>(null) }
 
     // Whether the service is enabled in system Accessibility settings can change
     // while we're backgrounded (the user toggles it there), so refresh on RESUME.
@@ -156,6 +166,9 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
             autoNextSupported = autoNextSupported,
             removable = taughtApps.any { it.packageName == base.packageName },
             contributable = DiscoveryRepository.approvedForPackage(base.packageName).isNotEmpty(),
+            customButtons = (customButtonsMap[base.packageName] ?: emptyList()).map {
+                CustomButtonUi(it.key, it.name, it.enabled)
+            },
         )
     }
 
@@ -180,6 +193,8 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         suggestions = suggestions,
         discoverySuggestionsEnabled = userSettings.discoverySuggestions,
         installedApps = installed,
+        teachArmedApp = teachArmed?.let { taughtNames[it] ?: displayNameFor(it) },
+        teachCandidates = teachCandidates.map { TeachCandidateUi(it.key, it.viewId, it.text) },
     )
 
     SkipperKitSettingsScreen(
@@ -232,6 +247,11 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         contributeOffer = contributeOfferPkg?.let { taughtNames[it] ?: displayNameFor(it) },
         onContributeOfferSend = { contributeOfferPkg?.let { contribute(it) }; contributeOfferPkg = null },
         onContributeOfferDismiss = { contributeOfferPkg = null },
+        onTeachApp = { pkg -> TeachModeRepository.arm(pkg) },
+        onTeachCancel = { TeachModeRepository.disarm() },
+        onTeachPick = { key -> teachPickKey = key },
+        onCustomButtonToggle = CustomButtonsRepository::setEnabled,
+        onCustomButtonRemove = CustomButtonsRepository::remove,
     )
 
     consentPayload?.let { (_, payload) ->
@@ -244,6 +264,32 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
             },
             onDismiss = { consentPayload = null },
         )
+    }
+
+    teachPickKey?.let { key ->
+        val candidate = teachCandidates.firstOrNull { it.key == key }
+        val armedPkg = teachArmed
+        if (candidate == null || armedPkg == null) {
+            teachPickKey = null
+        } else {
+            TeachNameDialog(
+                candidate = TeachCandidateUi(candidate.key, candidate.viewId, candidate.text),
+                onConfirm = { name ->
+                    CustomButtonsRepository.add(
+                        armedPkg,
+                        CustomButton(
+                            key = candidate.key,
+                            name = name,
+                            viewIds = listOfNotNull(candidate.viewId),
+                            labels = if (candidate.viewId == null) listOfNotNull(candidate.text) else emptyList(),
+                        ),
+                    )
+                    TeachModeRepository.disarm()
+                    teachPickKey = null
+                },
+                onDismiss = { teachPickKey = null },
+            )
+        }
     }
 }
 

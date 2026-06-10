@@ -92,6 +92,8 @@ data class ServiceStatus(
     val healthy: Boolean,           // events seen recently
 )
 
+data class CustomButtonUi(val key: String, val name: String, val enabled: Boolean)
+
 data class AppUiState(
     val packageName: String,
     val displayName: String,        // "Netflix", "Prime Video", "Disney+"
@@ -102,6 +104,7 @@ data class AppUiState(
     val autoNextSupported: Boolean = true, // false where the app exposes no usable next id (Prime)
     val removable: Boolean = false, // true for user-added apps
     val contributable: Boolean = false,
+    val customButtons: List<CustomButtonUi> = emptyList(),
 )
 
 /** An installable app shown in the "add an app" picker. */
@@ -115,6 +118,8 @@ data class SuggestionUi(
     val detail: String,  // what was matched, e.g. a view-id or visible text
 )
 
+data class TeachCandidateUi(val key: String, val viewId: String?, val text: String?)
+
 data class SettingsUiState(
     val masterEnabled: Boolean,
     val service: ServiceStatus,
@@ -122,6 +127,8 @@ data class SettingsUiState(
     val suggestions: List<SuggestionUi> = emptyList(),
     val discoverySuggestionsEnabled: Boolean = true,
     val installedApps: List<InstalledAppUi> = emptyList(),
+    val teachArmedApp: String? = null,
+    val teachCandidates: List<TeachCandidateUi> = emptyList(),
 )
 
 /* Feature keys used by onFeatureToggle. */
@@ -270,6 +277,11 @@ fun SkipperKitSettingsScreen(
     contributeOffer: String? = null,
     onContributeOfferSend: () -> Unit = {},
     onContributeOfferDismiss: () -> Unit = {},
+    onTeachApp: (packageName: String) -> Unit = {},
+    onTeachCancel: () -> Unit = {},
+    onTeachPick: (candidateKey: String) -> Unit = {},
+    onCustomButtonToggle: (packageName: String, key: String, Boolean) -> Unit = { _, _, _ -> },
+    onCustomButtonRemove: (packageName: String, key: String) -> Unit = { _, _ -> },
 ) {
     Scaffold(
         modifier = modifier,
@@ -327,8 +339,19 @@ fun SkipperKitSettingsScreen(
                 }
             }
 
+            if (state.teachArmedApp != null) {
+                item("teach-banner") {
+                    TeachBannerCard(
+                        armedAppName = state.teachArmedApp,
+                        candidates = state.teachCandidates,
+                        onCancel = onTeachCancel,
+                        onPick = onTeachPick,
+                    )
+                }
+            }
+
             item("section") {
-                SectionLabel("Streaming apps")
+                SectionLabel("Apps")
             }
 
             items(state.apps, key = { it.packageName }) { app ->
@@ -340,6 +363,9 @@ fun SkipperKitSettingsScreen(
                     onRemoveApp = onRemoveApp,
                     onExportApp = onExportApp,
                     onContributeApp = onContributeApp,
+                    onTeachApp = onTeachApp,
+                    onCustomButtonToggle = onCustomButtonToggle,
+                    onCustomButtonRemove = onCustomButtonRemove,
                 )
             }
 
@@ -733,6 +759,9 @@ private fun AppCard(
     onRemoveApp: (String) -> Unit = {},
     onExportApp: (String) -> Unit = {},
     onContributeApp: (String) -> Unit = {},
+    onTeachApp: (String) -> Unit = {},
+    onCustomButtonToggle: (String, String, Boolean) -> Unit = { _, _, _ -> },
+    onCustomButtonRemove: (String, String) -> Unit = { _, _ -> },
 ) {
     val cs = MaterialTheme.colorScheme
     val subActive = masterEnabled && app.enabled
@@ -767,6 +796,9 @@ private fun AppCard(
                 enabled = masterEnabled,
                 onCheckedChange = { onAppEnabledToggle(app.packageName, it) },
             )
+            TextButton(onClick = { onTeachApp(app.packageName) }) {
+                Text("Teach")
+            }
             if (app.contributable) {
                 TextButton(onClick = { onContributeApp(app.packageName) }) {
                     Text("Contribute")
@@ -810,8 +842,187 @@ private fun AppCard(
                 enabled = subActive && app.autoNextSupported,
                 onCheckedChange = { onFeatureToggle(app.packageName, SkipperFeature.AUTO_NEXT, it) },
             )
+            for (button in app.customButtons) {
+                CustomButtonRow(
+                    button = button,
+                    subActive = subActive,
+                    onToggle = { onCustomButtonToggle(app.packageName, button.key, it) },
+                    onRemove = { onCustomButtonRemove(app.packageName, button.key) },
+                )
+            }
         }
     }
+}
+
+/* ── Teach-mode banner / candidate picker ──────────────────────────────── */
+
+@Composable
+private fun TeachBannerCard(
+    armedAppName: String,
+    candidates: List<TeachCandidateUi>,
+    onCancel: () -> Unit,
+    onPick: (String) -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = cs.surfaceContainerHigh),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "Teaching $armedAppName",
+                    color = cs.onSurface,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onCancel) { Text("Cancel") }
+            }
+            if (candidates.isEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Open $armedAppName and reach the screen with the button you want. " +
+                        "SkipperKit is collecting buttons — come back here to pick one.",
+                    color = cs.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            } else {
+                Text(
+                    "Pick the button to automate:",
+                    color = cs.onSurfaceVariant,
+                    fontSize = 13.sp,
+                )
+                Spacer(Modifier.height(4.dp))
+                for (candidate in candidates) {
+                    val primaryLabel = candidate.text ?: candidate.viewId ?: "?"
+                    val secondaryLabel = if (candidate.text != null && candidate.viewId != null) candidate.viewId else null
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(candidate.key) }
+                            .padding(vertical = 12.dp),
+                    ) {
+                        Text(primaryLabel, color = cs.onSurface, fontSize = 15.sp)
+                        if (secondaryLabel != null) {
+                            Text(
+                                secondaryLabel,
+                                color = cs.onSurfaceVariant,
+                                fontSize = 11.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* ── Custom button row with inline Remove ──────────────────────────────── */
+
+@Composable
+private fun CustomButtonRow(
+    button: CustomButtonUi,
+    subActive: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onRemove: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    var showConfirm by remember { mutableStateOf(false) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .alpha(if (subActive) 1f else 0.45f),
+        ) {
+            Text(button.name, color = cs.onSurface, fontSize = 15.sp)
+            Text("Custom button", color = cs.onSurfaceVariant, fontSize = 12.5.sp, lineHeight = 16.sp)
+        }
+        TextButton(onClick = { showConfirm = true }) { Text("Remove") }
+        Spacer(Modifier.width(4.dp))
+        SkipperSwitch(checked = button.enabled, enabled = subActive, onCheckedChange = onToggle)
+    }
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("Remove '${button.name}'?") },
+            confirmButton = {
+                TextButton(onClick = { showConfirm = false; onRemove() }) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+/* ── Teach name dialog with risky-label guardrail ──────────────────────── */
+
+private val RISKY_LABEL = Regex("(?i)\\b(pay|buy|purchase|order|confirm|subscribe|delete|remove|send|transfer|checkout)\\b")
+
+@Composable
+fun TeachNameDialog(
+    candidate: TeachCandidateUi,
+    onConfirm: (name: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    var name by remember { mutableStateOf(candidate.text ?: "") }
+    var riskChecked by remember { mutableStateOf(false) }
+    val isRisky = candidate.text?.let { RISKY_LABEL.containsMatchIn(it) } == true
+    val canConfirm = name.isNotBlank() && (!isRisky || riskChecked)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Name this button") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { if (it.length <= 50) name = it },
+                    label = { Text("Button name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (isRisky) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "This looks like it could be a payment, confirmation, or destructive button. " +
+                            "SkipperKit would tap it automatically every time it appears.",
+                        color = cs.error,
+                        fontSize = 12.5.sp,
+                        lineHeight = 17.sp,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Checkbox(
+                            checked = riskChecked,
+                            onCheckedChange = { riskChecked = it },
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("I understand the risk", color = cs.onSurface, fontSize = 13.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name.trim()) }, enabled = canConfirm) {
+                Text("Confirm")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable
