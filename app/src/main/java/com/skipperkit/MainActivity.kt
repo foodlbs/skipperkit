@@ -17,6 +17,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
@@ -136,8 +138,11 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         sendInFlight = true
         pickerScope.launch {
             try {
+                // Concurrent sends: worst case is one 8 s timeout, not payloads × 8 s.
                 val sent = withContext(Dispatchers.IO) {
-                    payloads.count { ContributionSender.send(SettingsStore.CONTRIBUTION_URL, it) }
+                    payloads.map { p ->
+                        async { ContributionSender.send(SettingsStore.CONTRIBUTION_URL, p) }
+                    }.awaitAll().count { it }
                 }
                 Toast.makeText(
                     context,
