@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.skipperkit.config.CustomButton
 import com.skipperkit.config.SkipTarget
 import com.skipperkit.discovery.DiscoveredEntry
 import com.skipperkit.settings.AppToggles
@@ -101,6 +102,15 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { it[TAUGHT_APPS] = arr.toString() }
     }
 
+    suspend fun loadCustomButtons(): Map<String, List<CustomButton>> {
+        val json = context.dataStore.data.first()[CUSTOM_BUTTONS] ?: return emptyMap()
+        return parseCustomButtons(json)
+    }
+
+    suspend fun saveCustomButtons(map: Map<String, List<CustomButton>>) {
+        context.dataStore.edit { it[CUSTOM_BUTTONS] = customButtonsToJson(map) }
+    }
+
     private fun entriesToJson(entries: List<DiscoveredEntry>): String {
         val arr = JSONArray()
         entries.forEach { e ->
@@ -160,9 +170,56 @@ class SettingsStore(private val context: Context) {
         private val DISCOVERY_APPROVED = stringPreferencesKey("discovery_approved")
         private val DISCOVERY_DISMISSED = stringPreferencesKey("discovery_dismissed")
         private val TAUGHT_APPS = stringPreferencesKey("taught_apps")
+        private val CUSTOM_BUTTONS = stringPreferencesKey("custom_buttons")
         private val CONTRIBUTION_CONSENT = booleanPreferencesKey("contribution_consent")
 
         private fun appKey(packageName: String, feature: String) =
             booleanPreferencesKey("app__${packageName}__$feature")
     }
 }
+
+internal fun customButtonsToJson(map: Map<String, List<CustomButton>>): String {
+    val root = JSONObject()
+    map.forEach { (pkg, buttons) ->
+        val arr = JSONArray()
+        buttons.forEach { b ->
+            val viewIds = JSONArray()
+            b.viewIds.forEach { viewIds.put(it.take(256)) }
+            val labels = JSONArray()
+            b.labels.forEach { labels.put(it.take(256)) }
+            arr.put(
+                JSONObject()
+                    .put("key", b.key.take(256))
+                    .put("name", b.name.take(256))
+                    .put("viewIds", viewIds)
+                    .put("labels", labels)
+                    .put("enabled", b.enabled),
+            )
+        }
+        root.put(pkg, arr)
+    }
+    return root.toString()
+}
+
+internal fun parseCustomButtons(json: String): Map<String, List<CustomButton>> = runCatching {
+    val root = JSONObject(json)
+    val result = mutableMapOf<String, List<CustomButton>>()
+    root.keys().forEach { pkg ->
+        val arr = root.optJSONArray(pkg) ?: return@forEach
+        val buttons = (0 until minOf(arr.length(), 50)).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val key = o.optString("key").take(256).ifEmpty { return@mapNotNull null }
+            val name = o.optString("name").take(256).ifEmpty { return@mapNotNull null }
+            val viewIds = o.optJSONArray("viewIds")
+                ?.let { a -> (0 until a.length()).map { a.getString(it).take(256) } }
+                ?: emptyList()
+            val labels = o.optJSONArray("labels")
+                ?.let { a -> (0 until a.length()).map { a.getString(it).take(256) } }
+                ?: emptyList()
+            val enabled = o.optBoolean("enabled", true)
+            CustomButton(key = key, name = name, viewIds = viewIds, labels = labels, enabled = enabled)
+        }
+        result[pkg] = buttons
+    }
+    result
+}.getOrDefault(emptyMap())

@@ -27,5 +27,6 @@ data class DiscoveredEntry(
             SkipTarget.SKIP_INTRO -> "Skip Intro"
             SkipTarget.SKIP_RECAP -> "Skip Recap"
             SkipTarget.NEXT_EPISODE -> "Next Episode"
+            SkipTarget.CUSTOM -> "Custom"
         }
 }

@@ -9,13 +9,18 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.skipperkit.BuildConfig
+import com.skipperkit.config.SkipTarget
 import com.skipperkit.discovery.DiscoveredEntry
 import com.skipperkit.discovery.DiscoveryEngine
 import com.skipperkit.discovery.DiscoveryRepository
+import com.skipperkit.matching.NodeView
 import com.skipperkit.matching.Point
 import com.skipperkit.matching.SkipEngine
+import com.skipperkit.matching.TreeSearch
 import com.skipperkit.settings.SettingsRepository
 import com.skipperkit.settings.TaughtAppsRepository
+import com.skipperkit.teach.TeachCandidate
+import com.skipperkit.teach.TeachModeRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,6 +54,8 @@ class SkipAccessibilityService : AccessibilityService() {
 
     @Volatile
     private var lastDiscoveryUptimeMs = 0L
+
+    @Volatile private var lastTeachSweepUptimeMs = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -92,7 +99,15 @@ class SkipAccessibilityService : AccessibilityService() {
             null
         } ?: return
 
+        // A scoped app can surface another app's window (Chrome Custom Tabs are
+        // the common case) while events stay attributed to the host. Never
+        // search, click, or teach from a window owned by a different package —
+        // it's outside the user-approved scope and its ids are unusable anyway.
+        val windowPackage = root.packageName?.toString()
+        if (windowPackage != null && windowPackage != packageName) return
+
         val view = AccessibilityNodeView(root)
+        maybeCollectTeachCandidates(packageName, view)
         val result = try {
             engine.onTree(packageName, view, config)
         } catch (t: Throwable) {
@@ -102,14 +117,48 @@ class SkipAccessibilityService : AccessibilityService() {
         }
 
         when (result) {
-            is SkipEngine.Result.Clicked ->
-                Log.i(TAG, "Clicked ${result.target} in $packageName")
+            is SkipEngine.Result.Clicked -> {
+                val label = if (result.target == SkipTarget.CUSTOM && result.customName != null)
+                    "CUSTOM \"${result.customName}\"" else result.target.toString()
+                Log.i(TAG, "Clicked $label in $packageName")
+            }
             is SkipEngine.Result.NeedsGesture -> {
-                Log.i(TAG, "No clickable ancestor for ${result.target}; tapping via gesture")
+                val label = if (result.target == SkipTarget.CUSTOM && result.customName != null)
+                    "CUSTOM \"${result.customName}\"" else result.target.toString()
+                Log.i(TAG, "No clickable ancestor for $label; tapping via gesture")
                 dispatchTap(result.point)
             }
             is SkipEngine.Result.NoMatch -> maybeRunDiscovery(packageName, view)
             else -> Unit
+        }
+    }
+
+    /** Teach mode: collect clickable candidates from the armed app. Never clicks. */
+    private fun maybeCollectTeachCandidates(packageName: String, root: AccessibilityNodeView) {
+        if (!TeachModeRepository.isArmedFor(packageName)) return
+        val now = SystemClock.uptimeMillis()
+        if (now - lastTeachSweepUptimeMs < TEACH_SWEEP_INTERVAL_MS) return
+        lastTeachSweepUptimeMs = now
+        try {
+            collectClickable(root) { node ->
+                TeachModeRepository.offer(
+                    packageName,
+                    TeachCandidate(viewId = node.viewId, text = node.text ?: node.contentDescription),
+                )
+            }
+        } catch (t: Throwable) {
+            // Tree can invalidate mid-walk; a lost sweep is fine.
+        }
+    }
+
+    private fun collectClickable(root: NodeView, action: (NodeView) -> Unit) {
+        TreeSearch.forEach(root) { node ->
+            if (node.isClickable) {
+                val hasId = !node.viewId.isNullOrBlank()
+                val hasText = !node.text.isNullOrBlank()
+                val hasDesc = !node.contentDescription.isNullOrBlank()
+                if (hasId || hasText || hasDesc) action(node)
+            }
         }
     }
 
@@ -202,6 +251,9 @@ class SkipAccessibilityService : AccessibilityService() {
 
         /** Discovery is diagnostic; throttle hard so it never loads the hot path. */
         private const val DISCOVERY_INTERVAL_MS = 5000L
+
+        /** Teach mode candidate sweep rate; one sweep per second is plenty. */
+        private const val TEACH_SWEEP_INTERVAL_MS = 1000L
 
         /** The built-in apps; always in scope. User-added apps extend this at runtime.
          *  Must stay in sync with accessibility_service_config.xml packageNames. */

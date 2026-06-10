@@ -15,6 +15,8 @@ class SkipEngine(
     private val clock: () -> Long,
 ) {
 
+    // Debounce is per-package and shared across ALL targets (streaming + custom): if two different
+    // configured buttons are visible within the window, only the first match is tapped.
     private val lastActionUptimeByPackage = HashMap<String, Long>()
 
     sealed interface Result {
@@ -25,13 +27,13 @@ class SkipEngine(
         /** Nothing on screen matched. */
         data object NoMatch : Result
         /** Matched and clicked via ACTION_CLICK. */
-        data class Clicked(val target: SkipTarget) : Result
+        data class Clicked(val target: SkipTarget, val customName: String? = null) : Result
         /**
          * Matched, but no clickable self-or-ancestor accepted ACTION_CLICK.
          * Carries the on-screen point the service should tap via dispatchGesture.
          * Debounce IS armed on handoff (see below).
          */
-        data class NeedsGesture(val target: SkipTarget, val point: Point) : Result
+        data class NeedsGesture(val target: SkipTarget, val point: Point, val customName: String? = null) : Result
     }
 
     fun onTree(packageName: String, root: NodeView?, config: AppConfig): Result {
@@ -47,7 +49,7 @@ class SkipEngine(
             val clickable = TreeSearch.firstClickableSelfOrAncestor(hit)
             if (clickable != null && clickable.click()) {
                 lastActionUptimeByPackage[packageName] = clock()
-                return Result.Clicked(matcher.target)
+                return Result.Clicked(matcher.target, matcher.customName)
             }
 
             // Fallback: tap the bounds center of the clickable target (or the
@@ -55,7 +57,7 @@ class SkipEngine(
             // at most one gesture per window instead of one per screen update.
             val point = (clickable ?: hit).boundsCenter() ?: return Result.NoMatch
             lastActionUptimeByPackage[packageName] = clock()
-            return Result.NeedsGesture(matcher.target, point)
+            return Result.NeedsGesture(matcher.target, point, matcher.customName)
         }
         return Result.NoMatch
     }

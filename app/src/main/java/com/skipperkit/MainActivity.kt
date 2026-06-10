@@ -17,6 +17,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
@@ -32,18 +34,27 @@ import com.skipperkit.discovery.DiscoveryRepository
 import com.skipperkit.service.InstalledAppsProvider
 import com.skipperkit.service.ServiceRuntime
 import com.skipperkit.service.SkipAccessibilityService
+import com.skipperkit.config.CustomButton
+import com.skipperkit.settings.CustomButtonsRepository
 import com.skipperkit.settings.SettingsRepository
 import com.skipperkit.settings.TaughtApp
 import com.skipperkit.settings.TaughtAppPort
 import com.skipperkit.settings.TaughtAppsRepository
+import com.skipperkit.teach.TeachModeRepository
 import com.skipperkit.ui.settings.AppUiState
 import com.skipperkit.ui.settings.ContributionConsentDialog
+import com.skipperkit.ui.settings.CustomButtonUi
 import com.skipperkit.ui.settings.InstalledAppUi
 import com.skipperkit.ui.settings.ServiceStatus
 import com.skipperkit.ui.settings.SettingsUiState
 import com.skipperkit.ui.settings.SkipperKitSettingsScreen
 import com.skipperkit.ui.settings.SkipperKitTheme
 import com.skipperkit.ui.settings.SuggestionUi
+import com.skipperkit.config.SkipTarget
+import com.skipperkit.discovery.DiscoveredEntry
+import com.skipperkit.ui.settings.TeachCandidateUi
+import com.skipperkit.ui.settings.TeachKind
+import com.skipperkit.ui.settings.TeachNameDialog
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -71,13 +82,17 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     val lastActivityMs by ServiceRuntime.lastActivityMs.collectAsState()
     val pendingSuggestions by DiscoveryRepository.pending.collectAsState()
     val taughtApps by TaughtAppsRepository.taughtApps.collectAsState()
+    val teachArmed by TeachModeRepository.armedPackage.collectAsState()
+    val teachCandidates by TeachModeRepository.candidates.collectAsState()
+    val customButtonsMap by CustomButtonsRepository.buttons.collectAsState()
     var installed by remember { mutableStateOf(emptyList<InstalledAppUi>()) }
     val provider = remember { InstalledAppsProvider(context) }
     val pickerScope = rememberCoroutineScope()
     val settingsStore = remember { SettingsStore(context) }
     var contributeOfferPkg by remember { mutableStateOf<String?>(null) }
-    var consentPayload by remember { mutableStateOf<Pair<String, String>?>(null) } // pkg to payload
+    var consentPayloads by remember { mutableStateOf<List<String>?>(null) }
     var sendInFlight by remember { mutableStateOf(false) }
+    var teachPickKey by remember { mutableStateOf<String?>(null) }
 
     // Whether the service is enabled in system Accessibility settings can change
     // while we're backgrounded (the user toggles it there), so refresh on RESUME.
@@ -87,6 +102,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 enabledInSystem = isServiceEnabledInSystem(context)
+                TeachModeRepository.expireIfStale()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -102,26 +118,42 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         context.packageManager.getPackageInfo(pkg, 0).versionName
     }.getOrNull()
 
+    fun contributableEntries(pkg: String) = DiscoveryRepository.approvedForPackage(pkg)
+    fun contributableCustoms(pkg: String) = (customButtonsMap[pkg] ?: emptyList()).filter { it.enabled }
+    fun isContributable(pkg: String) =
+        contributableEntries(pkg).isNotEmpty() || contributableCustoms(pkg).isNotEmpty()
+
     fun buildPayload(pkg: String): String? = ContributionPort.build(
         packageName = pkg,
         displayName = taughtNames[pkg] ?: displayNameFor(pkg),
-        entries = DiscoveryRepository.approvedForPackage(pkg),
+        entries = contributableEntries(pkg),
         appVersionName = appVersionOf(pkg),
         skipperkitVersion = BuildConfig.VERSION_NAME,
         locale = Locale.getDefault().language,
+        customButtons = contributableCustoms(pkg),
     )
 
-    fun sendPayload(payload: String) {
-        if (sendInFlight) return
+    fun sendPayloads(payloads: List<String>) {
+        if (sendInFlight || payloads.isEmpty()) return
         sendInFlight = true
         pickerScope.launch {
             try {
-                val ok = withContext(Dispatchers.IO) {
-                    ContributionSender.send(SettingsStore.CONTRIBUTION_URL, payload)
+                // Concurrent sends: worst case is one 8 s timeout, not payloads × 8 s.
+                val results = withContext(Dispatchers.IO) {
+                    payloads.map { p ->
+                        async { ContributionSender.send(SettingsStore.CONTRIBUTION_URL, p) }
+                    }.awaitAll()
                 }
+                val sent = results.count { it == ContributionSender.Result.SENT }
                 Toast.makeText(
                     context,
-                    if (ok) "Sent — thank you!" else "Couldn't send — try again later",
+                    when {
+                        sent == payloads.size -> "Sent — thank you!"
+                        sent > 0 -> "Sent $sent of ${payloads.size} — thank you!"
+                        results.any { it == ContributionSender.Result.RATE_LIMITED } ->
+                            "Daily contribution limit reached — try again tomorrow"
+                        else -> "Couldn't send — try again later"
+                    },
                     Toast.LENGTH_SHORT,
                 ).show()
             } finally {
@@ -130,22 +162,32 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         }
     }
 
-    fun contribute(pkg: String) {
-        val payload = buildPayload(pkg) ?: return
+    fun contributePayloads(payloads: List<String>) {
+        if (payloads.isEmpty()) return
         pickerScope.launch {
-            if (settingsStore.contributionConsent()) {
-                sendPayload(payload)
-            } else {
-                consentPayload = pkg to payload
-            }
+            if (settingsStore.contributionConsent()) sendPayloads(payloads)
+            else consentPayloads = payloads
         }
     }
+
+    fun contribute(pkg: String) = contributePayloads(listOfNotNull(buildPayload(pkg)))
+
+    fun contributeAll() = contributePayloads(
+        baseConfigs.map { it.packageName }
+            .filter(::isContributable)
+            .mapNotNull(::buildPayload)
+            .take(MAX_CONTRIBUTE_ALL), // server allows 10 submissions/IP/day
+    )
 
     val apps = baseConfigs.map { base ->
         val toggles = userSettings.apps[base.packageName]
         val autoNextSupported = base.nextEpisodeViewIds.isNotEmpty() ||
             base.nextEpisodeLabels.isNotEmpty() ||
             base.nextEpisodeLabelPrefixes.isNotEmpty()
+        val skipIntroSupported = base.skipIntroViewIds.isNotEmpty() || base.skipIntroLabels.isNotEmpty() ||
+            base.skipIntroLabelPrefixes.isNotEmpty()
+        val skipRecapSupported = base.skipRecapViewIds.isNotEmpty() || base.skipRecapLabels.isNotEmpty() ||
+            base.skipRecapLabelPrefixes.isNotEmpty()
         AppUiState(
             packageName = base.packageName,
             displayName = taughtNames[base.packageName] ?: displayNameFor(base.packageName),
@@ -154,8 +196,13 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
             skipRecap = toggles?.skipRecap ?: true,
             autoNext = toggles?.autoNext ?: base.autoNextEnabled,
             autoNextSupported = autoNextSupported,
+            skipIntroSupported = skipIntroSupported,
+            skipRecapSupported = skipRecapSupported,
             removable = taughtApps.any { it.packageName == base.packageName },
-            contributable = DiscoveryRepository.approvedForPackage(base.packageName).isNotEmpty(),
+            contributable = isContributable(base.packageName),
+            customButtons = (customButtonsMap[base.packageName] ?: emptyList()).map {
+                CustomButtonUi(it.key, it.name, it.enabled)
+            },
         )
     }
 
@@ -180,6 +227,8 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         suggestions = suggestions,
         discoverySuggestionsEnabled = userSettings.discoverySuggestions,
         installedApps = installed,
+        teachArmedPackage = teachArmed,
+        teachCandidates = teachCandidates.map { TeachCandidateUi(it.key, it.viewId, it.text) },
     )
 
     SkipperKitSettingsScreen(
@@ -208,7 +257,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         },
         onExportApp = { pkg ->
             val app = taughtApps.firstOrNull { it.packageName == pkg } ?: TaughtApp(pkg, displayNameFor(pkg))
-            val json = TaughtAppPort.export(app, DiscoveryRepository.approvedForPackage(pkg))
+            val json = TaughtAppPort.export(app, DiscoveryRepository.approvedForPackage(pkg), customButtonsMap[pkg] ?: emptyList())
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_SUBJECT, "SkipperKit config: ${app.displayName}")
@@ -225,29 +274,81 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
                     TaughtAppsRepository.add(shared.app)
                 }
                 DiscoveryRepository.addApproved(shared.entries)
+                shared.customButtons.forEach { CustomButtonsRepository.add(shared.app.packageName, it) }
             }
             shared != null
         },
         onContributeApp = ::contribute,
+        onContributeAll = ::contributeAll,
         contributeOffer = contributeOfferPkg?.let { taughtNames[it] ?: displayNameFor(it) },
         onContributeOfferSend = { contributeOfferPkg?.let { contribute(it) }; contributeOfferPkg = null },
         onContributeOfferDismiss = { contributeOfferPkg = null },
+        onTeachApp = { pkg -> TeachModeRepository.arm(pkg) },
+        onTeachCancel = { TeachModeRepository.disarm() },
+        onTeachPick = { key -> teachPickKey = key },
+        onCustomButtonToggle = CustomButtonsRepository::setEnabled,
+        onCustomButtonRemove = CustomButtonsRepository::remove,
     )
 
-    consentPayload?.let { (_, payload) ->
+    consentPayloads?.let { payloads ->
         ContributionConsentDialog(
-            payload = payload,
+            payload = payloads.joinToString("\n\n"),
             onConfirm = {
                 pickerScope.launch { settingsStore.saveContributionConsent(true) }
-                sendPayload(payload)
-                consentPayload = null
+                sendPayloads(payloads)
+                consentPayloads = null
             },
-            onDismiss = { consentPayload = null },
+            onDismiss = { consentPayloads = null },
         )
+    }
+
+    teachPickKey?.let { key ->
+        val candidate = teachCandidates.firstOrNull { it.key == key }
+        val armedPkg = teachArmed
+        if (candidate == null || armedPkg == null) {
+            Toast.makeText(context, "Teach session expired — tap Teach to try again", Toast.LENGTH_SHORT).show()
+            teachPickKey = null
+        } else {
+            TeachNameDialog(
+                candidate = TeachCandidateUi(candidate.key, candidate.viewId, candidate.text),
+                onConfirm = { kind, name ->
+                    when (kind) {
+                        TeachKind.OTHER -> CustomButtonsRepository.add(
+                            armedPkg,
+                            CustomButton(
+                                key = candidate.key,
+                                name = name,
+                                viewIds = listOfNotNull(candidate.viewId),
+                                labels = if (candidate.viewId == null) listOfNotNull(candidate.text) else emptyList(),
+                            ),
+                        )
+                        else -> {
+                            val target = if (kind == TeachKind.SKIP_INTRO) SkipTarget.SKIP_INTRO else SkipTarget.SKIP_RECAP
+                            DiscoveryRepository.addApproved(
+                                listOf(
+                                    DiscoveredEntry(
+                                        packageName = armedPkg,
+                                        target = target,
+                                        viewId = candidate.viewId,
+                                        label = if (candidate.viewId == null) candidate.text else null,
+                                    ),
+                                ),
+                            )
+                            // Taught a shareable skip button — offer to send it upstream.
+                            contributeOfferPkg = armedPkg
+                        }
+                    }
+                    TeachModeRepository.disarm()
+                    teachPickKey = null
+                },
+                onDismiss = { teachPickKey = null },
+            )
+        }
     }
 }
 
 private const val HEALTHY_WINDOW_MS = 5 * 60 * 1000L
+private const val MAX_CONTRIBUTE_ALL = 10
 
 private fun displayNameFor(packageName: String): String = when (packageName) {
     "com.netflix.mediaclient" -> "Netflix"

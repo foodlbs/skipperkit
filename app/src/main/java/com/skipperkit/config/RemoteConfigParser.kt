@@ -17,7 +17,16 @@ import org.json.JSONObject
  *       "skipIntroViewIds": ["..."], "skipIntroLabels": ["..."],
  *       "skipRecapViewIds": ["..."], "skipRecapLabels": ["..."],
  *       "nextEpisodeViewIds": ["..."], "nextEpisodeLabels": ["..."],
- *       "enabled": true, "autoNextEnabled": false
+ *       "enabled": true, "autoNextEnabled": false,
+ *       "customButtons": [                          // optional — forward-compat
+ *         {
+ *           "key": "view/id-or-label:text",         // stable identity (≤256 chars)
+ *           "name": "User-visible name",            // display name (≤50 chars)
+ *           "viewIds": ["..."],                     // exact view-id matches
+ *           "labels":  ["..."],                     // exact label matches
+ *           "enabled": true                         // defaults true when absent
+ *         }
+ *       ]
  *     }
  *   ]
  * }
@@ -50,6 +59,7 @@ object RemoteConfigParser {
                     skipIntroLabelPrefixes = o.stringList("skipIntroLabelPrefixes"),
                     skipRecapLabelPrefixes = o.stringList("skipRecapLabelPrefixes"),
                     nextEpisodeLabelPrefixes = o.stringList("nextEpisodeLabelPrefixes"),
+                    customButtons = o.customButtonList(),
                 ),
             )
         }
@@ -62,6 +72,28 @@ object RemoteConfigParser {
         for (i in 0 until arr.length()) {
             val s = arr.optString(i, "").trim()
             if (s.isNotEmpty()) out.add(s)
+        }
+        return out
+    }
+
+    private fun JSONObject.customButtonList(): List<CustomButton> {
+        val arr: JSONArray = optJSONArray("customButtons") ?: return emptyList()
+        val out = ArrayList<CustomButton>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val key = o.optString("key", "").trim().take(256)
+            if (key.isEmpty()) continue
+            val name = o.optString("name", "").trim().take(50)
+            if (name.isEmpty()) continue
+            out.add(
+                CustomButton(
+                    key = key,
+                    name = name,
+                    viewIds = o.stringList("viewIds").map { it.take(256) },
+                    labels = o.stringList("labels").map { it.take(256) },
+                    enabled = o.optBoolean("enabled", true),
+                ),
+            )
         }
         return out
     }

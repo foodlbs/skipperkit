@@ -1,0 +1,263 @@
+package com.skipperkit.teach
+
+import com.skipperkit.config.ConfigRepository
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+class TeachModeRepositoryTest {
+
+    // Seeded as taught apps in setUp so arm() validation passes regardless of
+    // what other tests left in ConfigRepository — never rely on DefaultConfigs.
+    private val pkg = "com.example.teachtest.one"
+    private val other = "com.example.teachtest.two"
+
+    @Before
+    fun setUp() {
+        TeachModeRepository.disarm()
+        ConfigRepository.setTaughtApps(listOf(pkg, other))
+    }
+
+    @After
+    fun tearDown() {
+        TeachModeRepository.disarm()
+        ConfigRepository.setTaughtApps(emptyList())
+        // Reset clock to wall clock after each test.
+        TeachModeRepository.clock = { System.currentTimeMillis() }
+    }
+
+    // --- arm: package validation ---
+
+    @Test
+    fun `arm with unknown package does not set armedPackage`() {
+        val unknown = "com.totally.unknown.app"
+        TeachModeRepository.arm(unknown)
+        assertNull(TeachModeRepository.armedPackage.value)
+    }
+
+    @Test
+    fun `arm with known taught package arms successfully`() {
+        val taughtPkg = "com.example.taught"
+        ConfigRepository.setTaughtApps(listOf(taughtPkg))
+        TeachModeRepository.arm(taughtPkg)
+        assertEquals(taughtPkg, TeachModeRepository.armedPackage.value)
+    }
+
+    // --- arm / disarm ---
+
+    @Test
+    fun `arm sets the armed package`() {
+        TeachModeRepository.arm(pkg)
+        assertTrue(TeachModeRepository.isArmedFor(pkg))
+    }
+
+    @Test
+    fun `arm clears previous candidates`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
+        assertEquals(1, TeachModeRepository.candidates.value.size)
+
+        TeachModeRepository.arm(pkg)
+        assertEquals(0, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
+    fun `arm for different package clears previous candidates`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
+
+        TeachModeRepository.arm(other)
+        assertEquals(0, TeachModeRepository.candidates.value.size)
+        assertFalse(TeachModeRepository.isArmedFor(pkg))
+        assertTrue(TeachModeRepository.isArmedFor(other))
+    }
+
+    @Test
+    fun `disarm clears armed package and candidates`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
+
+        TeachModeRepository.disarm()
+
+        assertNull(TeachModeRepository.armedPackage.value)
+        assertEquals(0, TeachModeRepository.candidates.value.size)
+        assertFalse(TeachModeRepository.isArmedFor(pkg))
+    }
+
+    // --- offer: non-armed package ---
+
+    @Test
+    fun `offer for non-armed package is ignored`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(other, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
+        assertEquals(0, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
+    fun `offer when nothing is armed is ignored`() {
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
+        assertEquals(0, TeachModeRepository.candidates.value.size)
+    }
+
+    // --- offer: blank candidates ---
+
+    @Test
+    fun `offer with null viewId and null text is ignored`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = null, text = null))
+        assertEquals(0, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
+    fun `offer with blank viewId and blank text is ignored`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "  ", text = "  "))
+        assertEquals(0, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
+    fun `offer with null viewId but valid text is accepted`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = null, text = "SKIP INTRO"))
+        assertEquals(1, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
+    fun `offer with a foreign package's resource id is rejected`() {
+        // A Chrome Custom Tab surfaced inside the armed app: its nodes carry
+        // chrome ids that could never be tapped later (window out of scope).
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.android.chrome:id/close_button", text = "Close tab"))
+        assertEquals(0, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
+    fun `offer with a prefix-free compose testTag is accepted`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "someComposeTestTag", text = null))
+        assertEquals(1, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
+    fun `offer with valid viewId but null text is accepted`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
+        assertEquals(1, TeachModeRepository.candidates.value.size)
+    }
+
+    // --- dedupe ---
+
+    @Test
+    fun `offer deduplicates by key`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = "any"))
+        assertEquals(1, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
+    fun `offer deduplicates text-only candidates by lowercased label key`() {
+        TeachModeRepository.arm(pkg)
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = null, text = "SKIP INTRO"))
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = null, text = "SKIP INTRO"))
+        assertEquals(1, TeachModeRepository.candidates.value.size)
+    }
+
+    // --- cap at 100 ---
+
+    @Test
+    fun `offer caps at MAX_CANDIDATES and silently drops beyond`() {
+        TeachModeRepository.arm(pkg)
+        for (i in 1..110) {
+            TeachModeRepository.offer(pkg, TeachCandidate(viewId = "id/$i", text = null))
+        }
+        assertEquals(100, TeachModeRepository.candidates.value.size)
+    }
+
+    // --- auto-disarm after 3 minutes ---
+
+    @Test
+    fun `offer auto-disarms and is ignored after 3 minutes`() {
+        var fakeTime = 0L
+        TeachModeRepository.clock = { fakeTime }
+
+        TeachModeRepository.arm(pkg)
+        fakeTime = TeachModeRepository.AUTO_DISARM_MS + 1
+
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
+
+        assertFalse(TeachModeRepository.isArmedFor(pkg))
+        assertNull(TeachModeRepository.armedPackage.value)
+        assertEquals(0, TeachModeRepository.candidates.value.size)
+    }
+
+    @Test
+    fun `isArmedFor auto-disarms and returns false after 3 minutes`() {
+        var fakeTime = 0L
+        TeachModeRepository.clock = { fakeTime }
+
+        TeachModeRepository.arm(pkg)
+        fakeTime = TeachModeRepository.AUTO_DISARM_MS + 1
+
+        assertFalse(TeachModeRepository.isArmedFor(pkg))
+        assertNull(TeachModeRepository.armedPackage.value)
+    }
+
+    @Test
+    fun `offer within 3 minutes is accepted`() {
+        var fakeTime = 0L
+        TeachModeRepository.clock = { fakeTime }
+
+        TeachModeRepository.arm(pkg)
+        fakeTime = TeachModeRepository.AUTO_DISARM_MS - 1
+
+        TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = null))
+        assertEquals(1, TeachModeRepository.candidates.value.size)
+    }
+
+    // --- expireIfStale ---
+
+    @Test
+    fun `expireIfStale disarms when clock advanced past 3 minutes`() {
+        var fakeTime = 0L
+        TeachModeRepository.clock = { fakeTime }
+
+        TeachModeRepository.arm(pkg)
+        fakeTime = TeachModeRepository.AUTO_DISARM_MS + 1
+
+        TeachModeRepository.expireIfStale()
+
+        assertNull(TeachModeRepository.armedPackage.value)
+    }
+
+    @Test
+    fun `expireIfStale leaves armed session intact when not stale`() {
+        var fakeTime = 0L
+        TeachModeRepository.clock = { fakeTime }
+
+        TeachModeRepository.arm(pkg)
+        fakeTime = TeachModeRepository.AUTO_DISARM_MS - 1
+
+        TeachModeRepository.expireIfStale()
+
+        assertEquals(pkg, TeachModeRepository.armedPackage.value)
+    }
+
+    // --- TeachCandidate.key ---
+
+    @Test
+    fun `key prefers viewId over text label`() {
+        val c = TeachCandidate(viewId = "com.example.teachtest.one:id/skip", text = "SKIP INTRO")
+        assertEquals("com.example.teachtest.one:id/skip", c.key)
+    }
+
+    @Test
+    fun `key falls back to lowercased label when viewId is null`() {
+        val c = TeachCandidate(viewId = null, text = "SKIP INTRO")
+        assertEquals("label:skip intro", c.key)
+    }
+}

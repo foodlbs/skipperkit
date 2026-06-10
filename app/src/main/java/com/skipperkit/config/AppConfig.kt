@@ -1,7 +1,13 @@
 package com.skipperkit.config
 
-/** The three button kinds SkipperKit acts on. */
-enum class SkipTarget { SKIP_INTRO, SKIP_RECAP, NEXT_EPISODE }
+/** The three button kinds SkipperKit acts on, plus user-taught custom buttons. */
+enum class SkipTarget {
+    SKIP_INTRO,
+    SKIP_RECAP,
+    NEXT_EPISODE,
+    /** A user-taught named button (teach mode). */
+    CUSTOM,
+}
 
 /** One resolved set of identifiers to search for, derived from [AppConfig]. */
 data class Matcher(
@@ -9,6 +15,7 @@ data class Matcher(
     val viewIds: List<String>,
     val labels: List<String>,
     val labelPrefixes: List<String> = emptyList(),
+    val customName: String? = null,
 )
 
 /**
@@ -32,6 +39,7 @@ data class AppConfig(
     val skipIntroLabelPrefixes: List<String> = emptyList(),
     val skipRecapLabelPrefixes: List<String> = emptyList(),
     val nextEpisodeLabelPrefixes: List<String> = emptyList(),
+    val customButtons: List<CustomButton> = emptyList(),
 ) {
     /**
      * Search order: skip buttons first, then next-episode (only when auto-next
@@ -44,6 +52,9 @@ data class AppConfig(
         add(Matcher(SkipTarget.SKIP_RECAP, skipRecapViewIds, skipRecapLabels, skipRecapLabelPrefixes))
         if (autoNextEnabled) {
             add(Matcher(SkipTarget.NEXT_EPISODE, nextEpisodeViewIds, nextEpisodeLabels, nextEpisodeLabelPrefixes))
+        }
+        customButtons.filter { it.enabled }.forEach { b ->
+            add(Matcher(SkipTarget.CUSTOM, b.viewIds, b.labels, customName = b.name))
         }
     }
 }

@@ -40,6 +40,7 @@ object TaughtAppsRepository {
         _taughtApps.value = _taughtApps.value.filterNot { it.packageName == packageName }
         ConfigRepository.setTaughtApps(currentPackages())
         DiscoveryRepository.removeForPackage(packageName)
+        CustomButtonsRepository.removeForPackage(packageName)
         SettingsRepository.dropApp(packageName)
         onChanged?.invoke(_taughtApps.value)
     }

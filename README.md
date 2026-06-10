@@ -232,20 +232,36 @@ can never arrive via import.
 
 When SkipperKit discovers a working skip button that isn't in the shared config,
 you can send it upstream directly from the app — after approving a suggestion
-("Send this to the project?") or via **Contribute** on the app's card. The first
-send shows you the exact JSON; after that it's one tap. Submissions become public
-pull requests on [skipperkit-config](https://github.com/foodlbs/skipperkit-config)
-that a maintainer reviews before they reach anyone's device.
+("Send this to the project?"), via **Contribute** on the app's card, or via
+**Contribute all** next to the Apps header, which sends every app you've taught
+or approved buttons for in one go. Taught custom buttons are included alongside
+skip buttons. The first send shows you the exact JSON; after that it's one tap.
+Submissions become public pull requests on
+[skipperkit-config](https://github.com/foodlbs/skipperkit-config) that a
+maintainer reviews before they reach anyone's device — and contributed custom
+buttons additionally arrive **disabled** in the shared config until the
+maintainer deliberately enables them.
 
-### Beyond streaming
+### Beyond streaming: teach any button
 
-Skip buttons are the flagship, but the teach-and-approve loop is general: any
-repetitive, user-visible button in an app you add — a recurring "rate this app"
-nag, a daily check-in confirmation, a "still watching?" prompt — can be taught,
-approved once, and tapped for you from then on. The same constraints always hold:
-the app must be explicitly added, every button explicitly approved, and matching
-stays accessibility-tree-only. This also makes SkipperKit useful as an assistive
-tool for users for whom repeated precise taps are physically costly.
+Skip buttons are the flagship, but SkipperKit can automate **any** repetitive,
+user-visible button — a recurring "rate this app" nag, a daily check-in
+confirmation, a "still watching?" prompt. On any app's card, tap **Teach**:
+
+1. SkipperKit starts collecting the buttons it can see in that app (and nothing
+   else — collection is local, capped, and expires after 3 minutes).
+2. Open the app and reach the screen with your button, then come back.
+3. Pick the button from the list, give it a name, done. It now has its own
+   toggle on the app's card, and exports/imports along with the app.
+
+Taught buttons match exactly (stable view-id when available, exact text
+otherwise) and never prefix-match. If a chosen button's label looks like a
+payment or destructive action ("Buy", "Confirm", "Delete", …), SkipperKit warns
+you and requires an explicit acknowledgement before saving. The same constraints
+always hold: the app must be explicitly added, every button explicitly taught by
+you, and matching stays accessibility-tree-only. This also makes SkipperKit
+useful as an assistive tool for users for whom repeated precise taps are
+physically costly.
 
 ---
 
@@ -356,8 +372,9 @@ That's all. Specifically, it does **not**:
 - use root or ADB,
 - send your viewing data anywhere. (Two network calls exist, both HTTPS: an outbound
   GET for the button-configuration file, and — only when you explicitly tap
-  **Send/Contribute** — a POST containing a button's id/label, the streaming app's
-  version, SkipperKit's version, and your language code. Never device identifiers,
+  **Send/Contribute/Contribute all** — a POST per app containing button ids/labels,
+  taught custom buttons' names and ids/labels, the streaming app's version,
+  SkipperKit's version, and your language code. Never device identifiers,
   never anything about what you watch.)
 
 It interacts solely with the accessibility tree and native UI controls — the same

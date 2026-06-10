@@ -1,6 +1,7 @@
 package com.skipperkit.matching
 
 import com.skipperkit.config.AppConfig
+import com.skipperkit.config.CustomButton
 import com.skipperkit.config.SkipTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -189,5 +190,22 @@ class SkipEngineTest {
             SkipEngine.Result.Clicked(SkipTarget.NEXT_EPISODE),
             engine.onTree(pkg, root, config(autoNext = true)),
         )
+    }
+
+    @Test
+    fun `custom button config matches enabled button and reports CUSTOM target with correct name`() {
+        val customButton = CustomButton(
+            key = "x:id/dismiss",
+            name = "Dismiss Rating",
+            viewIds = listOf("x:id/dismiss"),
+            labels = emptyList(),
+            enabled = true,
+        )
+        val customConfig = config().copy(customButtons = listOf(customButton))
+        val dismissNode = FakeNode(viewId = "x:id/dismiss", isClickable = true)
+        val root = FakeNode(children = listOf(dismissNode))
+        val engine = SkipEngine(clock = { 0L })
+        val result = engine.onTree(pkg, root, customConfig)
+        assertEquals(SkipEngine.Result.Clicked(SkipTarget.CUSTOM, "Dismiss Rating"), result)
     }
 }

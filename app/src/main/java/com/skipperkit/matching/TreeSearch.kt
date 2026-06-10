@@ -40,6 +40,23 @@ object TreeSearch {
     }
 
     /**
+     * Visits every node in the subtree rooted at [root] (depth-first), invoking
+     * [action] on each. Stops descending when [MAX_DEPTH] is reached.
+     */
+    fun forEach(root: NodeView, action: (NodeView) -> Unit) {
+        visitAll(root, action, depth = 0)
+    }
+
+    private fun visitAll(node: NodeView, action: (NodeView) -> Unit, depth: Int) {
+        action(node)
+        if (depth >= MAX_DEPTH) return
+        for (i in 0 until node.childCount) {
+            val child = node.childAt(i) ?: continue
+            visitAll(child, action, depth + 1)
+        }
+    }
+
+    /**
      * Walks up from [node] (inclusive) to the first clickable node. Netflix's
      * matched text node is itself non-clickable; its clickable Compose parent is
      * one level up. Returns null if nothing in the chain is clickable.
