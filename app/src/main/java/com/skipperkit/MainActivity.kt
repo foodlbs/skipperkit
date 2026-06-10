@@ -88,7 +88,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
     val pickerScope = rememberCoroutineScope()
     val settingsStore = remember { SettingsStore(context) }
     var contributeOfferPkg by remember { mutableStateOf<String?>(null) }
-    var consentPayload by remember { mutableStateOf<Pair<String, String>?>(null) } // pkg to payload
+    var consentPayloads by remember { mutableStateOf<List<String>?>(null) }
     var sendInFlight by remember { mutableStateOf(false) }
     var teachPickKey by remember { mutableStateOf<String?>(null) }
 
@@ -116,26 +116,36 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         context.packageManager.getPackageInfo(pkg, 0).versionName
     }.getOrNull()
 
+    fun contributableEntries(pkg: String) = DiscoveryRepository.approvedForPackage(pkg)
+    fun contributableCustoms(pkg: String) = (customButtonsMap[pkg] ?: emptyList()).filter { it.enabled }
+    fun isContributable(pkg: String) =
+        contributableEntries(pkg).isNotEmpty() || contributableCustoms(pkg).isNotEmpty()
+
     fun buildPayload(pkg: String): String? = ContributionPort.build(
         packageName = pkg,
         displayName = taughtNames[pkg] ?: displayNameFor(pkg),
-        entries = DiscoveryRepository.approvedForPackage(pkg),
+        entries = contributableEntries(pkg),
         appVersionName = appVersionOf(pkg),
         skipperkitVersion = BuildConfig.VERSION_NAME,
         locale = Locale.getDefault().language,
+        customButtons = contributableCustoms(pkg),
     )
 
-    fun sendPayload(payload: String) {
-        if (sendInFlight) return
+    fun sendPayloads(payloads: List<String>) {
+        if (sendInFlight || payloads.isEmpty()) return
         sendInFlight = true
         pickerScope.launch {
             try {
-                val ok = withContext(Dispatchers.IO) {
-                    ContributionSender.send(SettingsStore.CONTRIBUTION_URL, payload)
+                val sent = withContext(Dispatchers.IO) {
+                    payloads.count { ContributionSender.send(SettingsStore.CONTRIBUTION_URL, it) }
                 }
                 Toast.makeText(
                     context,
-                    if (ok) "Sent — thank you!" else "Couldn't send — try again later",
+                    when {
+                        sent == 0 -> "Couldn't send — try again later"
+                        sent < payloads.size -> "Sent $sent of ${payloads.size} — thank you!"
+                        else -> "Sent — thank you!"
+                    },
                     Toast.LENGTH_SHORT,
                 ).show()
             } finally {
@@ -144,16 +154,22 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         }
     }
 
-    fun contribute(pkg: String) {
-        val payload = buildPayload(pkg) ?: return
+    fun contributePayloads(payloads: List<String>) {
+        if (payloads.isEmpty()) return
         pickerScope.launch {
-            if (settingsStore.contributionConsent()) {
-                sendPayload(payload)
-            } else {
-                consentPayload = pkg to payload
-            }
+            if (settingsStore.contributionConsent()) sendPayloads(payloads)
+            else consentPayloads = payloads
         }
     }
+
+    fun contribute(pkg: String) = contributePayloads(listOfNotNull(buildPayload(pkg)))
+
+    fun contributeAll() = contributePayloads(
+        baseConfigs.map { it.packageName }
+            .filter(::isContributable)
+            .mapNotNull(::buildPayload)
+            .take(MAX_CONTRIBUTE_ALL), // server allows 10 submissions/IP/day
+    )
 
     val apps = baseConfigs.map { base ->
         val toggles = userSettings.apps[base.packageName]
@@ -175,7 +191,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
             skipIntroSupported = skipIntroSupported,
             skipRecapSupported = skipRecapSupported,
             removable = taughtApps.any { it.packageName == base.packageName },
-            contributable = DiscoveryRepository.approvedForPackage(base.packageName).isNotEmpty(),
+            contributable = isContributable(base.packageName),
             customButtons = (customButtonsMap[base.packageName] ?: emptyList()).map {
                 CustomButtonUi(it.key, it.name, it.enabled)
             },
@@ -255,6 +271,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
             shared != null
         },
         onContributeApp = ::contribute,
+        onContributeAll = ::contributeAll,
         contributeOffer = contributeOfferPkg?.let { taughtNames[it] ?: displayNameFor(it) },
         onContributeOfferSend = { contributeOfferPkg?.let { contribute(it) }; contributeOfferPkg = null },
         onContributeOfferDismiss = { contributeOfferPkg = null },
@@ -265,15 +282,15 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         onCustomButtonRemove = CustomButtonsRepository::remove,
     )
 
-    consentPayload?.let { (_, payload) ->
+    consentPayloads?.let { payloads ->
         ContributionConsentDialog(
-            payload = payload,
+            payload = payloads.joinToString("\n\n"),
             onConfirm = {
                 pickerScope.launch { settingsStore.saveContributionConsent(true) }
-                sendPayload(payload)
-                consentPayload = null
+                sendPayloads(payloads)
+                consentPayloads = null
             },
-            onDismiss = { consentPayload = null },
+            onDismiss = { consentPayloads = null },
         )
     }
 
@@ -323,6 +340,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
 }
 
 private const val HEALTHY_WINDOW_MS = 5 * 60 * 1000L
+private const val MAX_CONTRIBUTE_ALL = 10
 
 private fun displayNameFor(packageName: String): String = when (packageName) {
     "com.netflix.mediaclient" -> "Netflix"

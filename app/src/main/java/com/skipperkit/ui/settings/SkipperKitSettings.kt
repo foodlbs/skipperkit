@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -297,6 +300,7 @@ fun SkipperKitSettingsScreen(
     contributeOffer: String? = null,
     onContributeOfferSend: () -> Unit = {},
     onContributeOfferDismiss: () -> Unit = {},
+    onContributeAll: () -> Unit = {},
     onTeachApp: (packageName: String) -> Unit = {},
     onTeachCancel: () -> Unit = {},
     onTeachPick: (candidateKey: String) -> Unit = {},
@@ -360,7 +364,13 @@ fun SkipperKitSettingsScreen(
             }
 
             item("section") {
-                SectionLabel("Apps")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SectionLabel("Apps")
+                    Spacer(Modifier.weight(1f))
+                    if (state.apps.any { it.contributable }) {
+                        TextButton(onClick = onContributeAll) { Text("Contribute all") }
+                    }
+                }
             }
 
             items(state.apps, key = { it.packageName }) { app ->
@@ -537,6 +547,8 @@ fun ContributionConsentDialog(payload: String, onConfirm: () -> Unit, onDismiss:
                     color = cs.onSurface, fontSize = 11.sp, lineHeight = 15.sp,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .heightIn(max = 240.dp)
+                        .verticalScroll(rememberScrollState())
                         .background(cs.surfaceContainerHighest, RoundedCornerShape(12.dp))
                         .padding(10.dp),
                 )
