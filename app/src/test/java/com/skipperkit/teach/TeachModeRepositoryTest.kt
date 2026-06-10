@@ -11,13 +11,15 @@ import org.junit.Test
 
 class TeachModeRepositoryTest {
 
-    private val pkg = "com.netflix.mediaclient"
-    private val other = "com.amazon.avod.thirdpartyclient"
+    // Seeded as taught apps in setUp so arm() validation passes regardless of
+    // what other tests left in ConfigRepository — never rely on DefaultConfigs.
+    private val pkg = "com.example.teachtest.one"
+    private val other = "com.example.teachtest.two"
 
     @Before
     fun setUp() {
         TeachModeRepository.disarm()
-        ConfigRepository.setTaughtApps(emptyList())
+        ConfigRepository.setTaughtApps(listOf(pkg, other))
     }
 
     @After
