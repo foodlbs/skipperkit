@@ -102,6 +102,8 @@ data class AppUiState(
     val skipRecap: Boolean,
     val autoNext: Boolean,
     val autoNextSupported: Boolean = true, // false where the app exposes no usable next id (Prime)
+    val skipIntroSupported: Boolean = true,
+    val skipRecapSupported: Boolean = true,
     val removable: Boolean = false, // true for user-added apps
     val contributable: Boolean = false,
     val customButtons: List<CustomButtonUi> = emptyList(),
@@ -127,7 +129,7 @@ data class SettingsUiState(
     val suggestions: List<SuggestionUi> = emptyList(),
     val discoverySuggestionsEnabled: Boolean = true,
     val installedApps: List<InstalledAppUi> = emptyList(),
-    val teachArmedApp: String? = null,
+    val teachArmedPackage: String? = null,
     val teachCandidates: List<TeachCandidateUi> = emptyList(),
 )
 
@@ -353,17 +355,6 @@ fun SkipperKitSettingsScreen(
                 }
             }
 
-            if (state.teachArmedApp != null) {
-                item("teach-banner") {
-                    TeachBannerCard(
-                        armedAppName = state.teachArmedApp,
-                        candidates = state.teachCandidates,
-                        onCancel = onTeachCancel,
-                        onPick = onTeachPick,
-                    )
-                }
-            }
-
             item("section") {
                 SectionLabel("Apps")
             }
@@ -378,6 +369,10 @@ fun SkipperKitSettingsScreen(
                     onExportApp = onExportApp,
                     onContributeApp = onContributeApp,
                     onTeachApp = onTeachApp,
+                    teachActive = app.packageName == state.teachArmedPackage,
+                    teachCandidates = state.teachCandidates,
+                    onTeachCancel = onTeachCancel,
+                    onTeachPick = onTeachPick,
                     onCustomButtonToggle = onCustomButtonToggle,
                     onCustomButtonRemove = onCustomButtonRemove,
                 )
@@ -464,7 +459,7 @@ private fun SuggestionCard(
     ) {
         Column(Modifier.padding(18.dp)) {
             Text(
-                "Found a “${suggestion.label}” button in ${suggestion.appName}",
+                "Found a \"${suggestion.label}\" button in ${suggestion.appName}",
                 color = cs.onSurface,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
@@ -774,11 +769,16 @@ private fun AppCard(
     onExportApp: (String) -> Unit = {},
     onContributeApp: (String) -> Unit = {},
     onTeachApp: (String) -> Unit = {},
+    teachActive: Boolean = false,
+    teachCandidates: List<TeachCandidateUi> = emptyList(),
+    onTeachCancel: () -> Unit = {},
+    onTeachPick: (String) -> Unit = {},
     onCustomButtonToggle: (String, String, Boolean) -> Unit = { _, _, _ -> },
     onCustomButtonRemove: (String, String) -> Unit = { _, _ -> },
 ) {
     val cs = MaterialTheme.colorScheme
     val subActive = masterEnabled && app.enabled
+    val hasRows = app.skipIntroSupported || app.skipRecapSupported || app.customButtons.isNotEmpty()
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = cs.surfaceContainer),
@@ -819,8 +819,14 @@ private fun AppCard(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(start = 10.dp, end = 10.dp),
         ) {
-            TextButton(onClick = { onTeachApp(app.packageName) }) {
-                Text("Teach")
+            if (teachActive) {
+                TextButton(onClick = onTeachCancel) {
+                    Text("Cancel teaching")
+                }
+            } else {
+                TextButton(onClick = { onTeachApp(app.packageName) }) {
+                    Text("Teach")
+                }
             }
             if (app.contributable) {
                 TextButton(onClick = { onContributeApp(app.packageName) }) {
@@ -837,110 +843,114 @@ private fun AppCard(
             }
         }
 
-        // Sub-toggles: always present; disabled/greyed when the app (or master) is off.
-        Column(Modifier.padding(start = 18.dp, end = 18.dp, bottom = 6.dp)) {
-            HorizontalDivider(color = cs.outlineVariant)
-            FeatureRow(
-                title = "Skip Intro",
-                subtitle = "Tap the intro skip button",
-                checked = app.skipIntro,
-                enabled = subActive,
-                onCheckedChange = { onFeatureToggle(app.packageName, SkipperFeature.SKIP_INTRO, it) },
+        // Inline teach section — shown inside the card when this app is being taught.
+        if (teachActive) {
+            TeachSection(
+                displayName = app.displayName,
+                candidates = teachCandidates,
+                onPick = onTeachPick,
             )
-            FeatureRow(
-                title = "Skip Recap",
-                subtitle = "Tap “Skip recap” when shown",
-                checked = app.skipRecap,
-                enabled = subActive,
-                onCheckedChange = { onFeatureToggle(app.packageName, SkipperFeature.SKIP_RECAP, it) },
-            )
-            FeatureRow(
-                title = "Auto-play Next Episode",
-                subtitle = if (app.autoNextSupported) {
-                    "Hit “Next episode” automatically"
-                } else {
-                    "Not available in this app"
-                },
-                checked = app.autoNext && app.autoNextSupported,
-                enabled = subActive && app.autoNextSupported,
-                onCheckedChange = { onFeatureToggle(app.packageName, SkipperFeature.AUTO_NEXT, it) },
-            )
-            for (button in app.customButtons) {
-                CustomButtonRow(
-                    button = button,
-                    subActive = subActive,
-                    onToggle = { onCustomButtonToggle(app.packageName, button.key, it) },
-                    onRemove = { onCustomButtonRemove(app.packageName, button.key) },
-                )
+        }
+
+        // Sub-toggles: only shown when there is something to display.
+        if (hasRows) {
+            Column(Modifier.padding(start = 18.dp, end = 18.dp, bottom = 6.dp)) {
+                HorizontalDivider(color = cs.outlineVariant)
+                if (app.skipIntroSupported) {
+                    FeatureRow(
+                        title = "Skip Intro",
+                        subtitle = "Tap the intro skip button",
+                        checked = app.skipIntro,
+                        enabled = subActive,
+                        onCheckedChange = { onFeatureToggle(app.packageName, SkipperFeature.SKIP_INTRO, it) },
+                    )
+                }
+                if (app.skipRecapSupported) {
+                    FeatureRow(
+                        title = "Skip Recap",
+                        subtitle = "Tap \"Skip recap\" when shown",
+                        checked = app.skipRecap,
+                        enabled = subActive,
+                        onCheckedChange = { onFeatureToggle(app.packageName, SkipperFeature.SKIP_RECAP, it) },
+                    )
+                }
+                if (app.autoNextSupported || app.skipIntroSupported || app.skipRecapSupported) {
+                    FeatureRow(
+                        title = "Auto-play Next Episode",
+                        subtitle = if (app.autoNextSupported) {
+                            "Hit \"Next episode\" automatically"
+                        } else {
+                            "Not available in this app"
+                        },
+                        checked = app.autoNext && app.autoNextSupported,
+                        enabled = subActive && app.autoNextSupported,
+                        onCheckedChange = { onFeatureToggle(app.packageName, SkipperFeature.AUTO_NEXT, it) },
+                    )
+                }
+                for (button in app.customButtons) {
+                    CustomButtonRow(
+                        button = button,
+                        subActive = subActive,
+                        onToggle = { onCustomButtonToggle(app.packageName, button.key, it) },
+                        onRemove = { onCustomButtonRemove(app.packageName, button.key) },
+                    )
+                }
             }
+        } else {
+            Spacer(Modifier.height(6.dp))
         }
     }
 }
 
-/* ── Teach-mode banner / candidate picker ──────────────────────────────── */
+/* ── Teach-mode inline section (rendered inside the app's own card) ──────── */
 
 @Composable
-private fun TeachBannerCard(
-    armedAppName: String,
+private fun TeachSection(
+    displayName: String,
     candidates: List<TeachCandidateUi>,
-    onCancel: () -> Unit,
     onPick: (String) -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = cs.surfaceContainerHigh),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(18.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    "Teaching $armedAppName",
-                    color = cs.onSurface,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = onCancel) { Text("Cancel") }
-            }
-            if (candidates.isEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Open $armedAppName and reach the screen with the button you want. " +
-                        "SkipperKit is collecting buttons — come back here to pick one.",
-                    color = cs.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                )
-            } else {
-                Text(
-                    "Pick the button to automate:",
-                    color = cs.onSurfaceVariant,
-                    fontSize = 13.sp,
-                )
-                Spacer(Modifier.height(4.dp))
-                for (candidate in candidates) {
-                    val primaryLabel = candidate.text ?: candidate.viewId ?: "?"
-                    val secondaryLabel = if (candidate.text != null && candidate.viewId != null) candidate.viewId else null
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onPick(candidate.key) }
-                            .padding(vertical = 12.dp),
-                    ) {
-                        Text(primaryLabel, color = cs.onSurface, fontSize = 15.sp)
-                        if (secondaryLabel != null) {
-                            Text(
-                                secondaryLabel,
-                                color = cs.onSurfaceVariant,
-                                fontSize = 11.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+    Column(Modifier.padding(start = 18.dp, end = 18.dp, bottom = 8.dp)) {
+        if (candidates.isEmpty()) {
+            Text(
+                "Open $displayName and reach the screen with the button you want — " +
+                    "SkipperKit is collecting what it sees. Come back here to pick.",
+                color = cs.onSurfaceVariant,
+                fontSize = 12.5.sp,
+                lineHeight = 17.sp,
+            )
+        } else {
+            Text(
+                "Pick the button to automate:",
+                color = cs.onSurfaceVariant,
+                fontSize = 12.5.sp,
+            )
+            Spacer(Modifier.height(4.dp))
+            for (candidate in candidates) {
+                val primaryLabel = candidate.text ?: candidate.viewId ?: "?"
+                val secondaryLabel = if (candidate.text != null && candidate.viewId != null) candidate.viewId else null
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(candidate.key) }
+                        .padding(vertical = 12.dp),
+                ) {
+                    Text(
+                        primaryLabel,
+                        color = cs.onSurface,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (secondaryLabel != null) {
+                        Text(
+                            secondaryLabel,
+                            color = cs.onSurfaceVariant,
+                            fontSize = 11.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             }

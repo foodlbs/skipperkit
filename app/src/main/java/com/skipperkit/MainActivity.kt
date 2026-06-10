@@ -157,6 +157,10 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         val autoNextSupported = base.nextEpisodeViewIds.isNotEmpty() ||
             base.nextEpisodeLabels.isNotEmpty() ||
             base.nextEpisodeLabelPrefixes.isNotEmpty()
+        val skipIntroSupported = base.skipIntroViewIds.isNotEmpty() || base.skipIntroLabels.isNotEmpty() ||
+            base.skipIntroLabelPrefixes.isNotEmpty()
+        val skipRecapSupported = base.skipRecapViewIds.isNotEmpty() || base.skipRecapLabels.isNotEmpty() ||
+            base.skipRecapLabelPrefixes.isNotEmpty()
         AppUiState(
             packageName = base.packageName,
             displayName = taughtNames[base.packageName] ?: displayNameFor(base.packageName),
@@ -165,6 +169,8 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
             skipRecap = toggles?.skipRecap ?: true,
             autoNext = toggles?.autoNext ?: base.autoNextEnabled,
             autoNextSupported = autoNextSupported,
+            skipIntroSupported = skipIntroSupported,
+            skipRecapSupported = skipRecapSupported,
             removable = taughtApps.any { it.packageName == base.packageName },
             contributable = DiscoveryRepository.approvedForPackage(base.packageName).isNotEmpty(),
             customButtons = (customButtonsMap[base.packageName] ?: emptyList()).map {
@@ -194,7 +200,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         suggestions = suggestions,
         discoverySuggestionsEnabled = userSettings.discoverySuggestions,
         installedApps = installed,
-        teachArmedApp = teachArmed?.let { taughtNames[it] ?: displayNameFor(it) },
+        teachArmedPackage = teachArmed,
         teachCandidates = teachCandidates.map { TeachCandidateUi(it.key, it.viewId, it.text) },
     )
 
