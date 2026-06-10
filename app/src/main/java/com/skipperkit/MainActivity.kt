@@ -97,6 +97,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 enabledInSystem = isServiceEnabledInSystem(context)
+                TeachModeRepository.expireIfStale()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -271,6 +272,7 @@ private fun SettingsRoute(onOpenAccessibilitySettings: () -> Unit) {
         val candidate = teachCandidates.firstOrNull { it.key == key }
         val armedPkg = teachArmed
         if (candidate == null || armedPkg == null) {
+            Toast.makeText(context, "Teach session expired — tap Teach to try again", Toast.LENGTH_SHORT).show()
             teachPickKey = null
         } else {
             TeachNameDialog(

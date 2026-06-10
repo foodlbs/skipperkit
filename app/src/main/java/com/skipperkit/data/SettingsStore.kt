@@ -206,7 +206,7 @@ internal fun parseCustomButtons(json: String): Map<String, List<CustomButton>> =
     val result = mutableMapOf<String, List<CustomButton>>()
     root.keys().forEach { pkg ->
         val arr = root.optJSONArray(pkg) ?: return@forEach
-        val buttons = (0 until arr.length()).mapNotNull { i ->
+        val buttons = (0 until minOf(arr.length(), 50)).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
             val key = o.optString("key").take(256).ifEmpty { return@mapNotNull null }
             val name = o.optString("name").take(256).ifEmpty { return@mapNotNull null }

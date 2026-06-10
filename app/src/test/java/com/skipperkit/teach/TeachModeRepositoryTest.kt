@@ -1,5 +1,6 @@
 package com.skipperkit.teach
 
+import com.skipperkit.config.ConfigRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,13 +17,32 @@ class TeachModeRepositoryTest {
     @Before
     fun setUp() {
         TeachModeRepository.disarm()
+        ConfigRepository.setTaughtApps(emptyList())
     }
 
     @After
     fun tearDown() {
         TeachModeRepository.disarm()
+        ConfigRepository.setTaughtApps(emptyList())
         // Reset clock to wall clock after each test.
         TeachModeRepository.clock = { System.currentTimeMillis() }
+    }
+
+    // --- arm: package validation ---
+
+    @Test
+    fun `arm with unknown package does not set armedPackage`() {
+        val unknown = "com.totally.unknown.app"
+        TeachModeRepository.arm(unknown)
+        assertNull(TeachModeRepository.armedPackage.value)
+    }
+
+    @Test
+    fun `arm with known taught package arms successfully`() {
+        val taughtPkg = "com.example.taught"
+        ConfigRepository.setTaughtApps(listOf(taughtPkg))
+        TeachModeRepository.arm(taughtPkg)
+        assertEquals(taughtPkg, TeachModeRepository.armedPackage.value)
     }
 
     // --- arm / disarm ---
@@ -179,6 +199,34 @@ class TeachModeRepositoryTest {
 
         TeachModeRepository.offer(pkg, TeachCandidate(viewId = "com.x:id/skip", text = null))
         assertEquals(1, TeachModeRepository.candidates.value.size)
+    }
+
+    // --- expireIfStale ---
+
+    @Test
+    fun `expireIfStale disarms when clock advanced past 3 minutes`() {
+        var fakeTime = 0L
+        TeachModeRepository.clock = { fakeTime }
+
+        TeachModeRepository.arm(pkg)
+        fakeTime = TeachModeRepository.AUTO_DISARM_MS + 1
+
+        TeachModeRepository.expireIfStale()
+
+        assertNull(TeachModeRepository.armedPackage.value)
+    }
+
+    @Test
+    fun `expireIfStale leaves armed session intact when not stale`() {
+        var fakeTime = 0L
+        TeachModeRepository.clock = { fakeTime }
+
+        TeachModeRepository.arm(pkg)
+        fakeTime = TeachModeRepository.AUTO_DISARM_MS - 1
+
+        TeachModeRepository.expireIfStale()
+
+        assertEquals(pkg, TeachModeRepository.armedPackage.value)
     }
 
     // --- TeachCandidate.key ---

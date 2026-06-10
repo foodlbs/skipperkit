@@ -38,6 +38,8 @@ object TaughtAppPort {
 
     private val PACKAGE_REGEX = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")
 
+    private val RISKY = Regex("(?i)\\b(pay|buy|purchase|order|confirm|subscribe|delete|remove|send|transfer|checkout)\\b")
+
     fun export(
         app: TaughtApp,
         entries: List<DiscoveredEntry>,
@@ -63,6 +65,7 @@ object TaughtAppPort {
                 },
             )
             .put(
+                // Serializes only the first viewId/label per button; the teach flow only ever creates one.
                 "customButtons",
                 JSONArray().apply {
                     customButtons.forEach { b ->
@@ -78,7 +81,11 @@ object TaughtAppPort {
             )
             .toString(2)
 
-    /** Returns null when [json] is not a valid shared taught app. */
+    /**
+     * Returns null when [json] is not a valid shared taught app.
+     *
+     * Imported buttons that look payment/destructive arrive disabled; the user must enable them deliberately.
+     */
     fun parse(json: String): SharedTaughtApp? {
         val root = runCatching { JSONObject(json) }.getOrNull() ?: return null
         val version = root.optInt(FORMAT_KEY)
@@ -109,13 +116,16 @@ object TaughtAppPort {
                 val label = o.optStringOrNull("label")?.take(MAX_STRING)
                 if (viewId == null && label == null) return@mapNotNull null
                 val key = viewId ?: "label:${label!!.lowercase()}"
-                val enabled = if (o.has("enabled")) o.optBoolean("enabled", true) else true
+                val parsedEnabled = if (o.has("enabled")) o.optBoolean("enabled", true) else true
+                val risky = RISKY.containsMatchIn(
+                    listOfNotNull(name, label, viewId?.substringAfterLast('/')?.replace('_', ' ')).joinToString(" ")
+                )
                 CustomButton(
                     key = key,
                     name = name,
                     viewIds = listOfNotNull(viewId),
                     labels = listOfNotNull(label),
-                    enabled = enabled,
+                    enabled = (parsedEnabled && !risky),
                 )
             }
         } else {

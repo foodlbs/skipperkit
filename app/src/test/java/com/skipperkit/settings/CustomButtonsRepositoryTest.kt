@@ -159,6 +159,26 @@ class CustomButtonsRepositoryTest {
         assertTrue(parsed["com.example"]?.isEmpty() ?: true)
     }
 
+    @Test fun `51st add is a no-op`() {
+        ConfigRepository.setTaughtApps(listOf(pkg))
+        for (i in 0 until 50) {
+            CustomButtonsRepository.add(pkg, button.copy(key = "key$i", name = "Button $i"))
+        }
+        assertEquals(50, CustomButtonsRepository.forPackage(pkg).size)
+        // The 51st button must not be added.
+        CustomButtonsRepository.add(pkg, button.copy(key = "key50", name = "Button 50"))
+        assertEquals(50, CustomButtonsRepository.forPackage(pkg).size)
+    }
+
+    @Test fun `parseCustomButtons caps each package at 50 buttons`() {
+        val items = (0 until 60).joinToString(",") {
+            """{"key":"k$it","name":"B$it","viewIds":[],"labels":[],"enabled":true}"""
+        }
+        val json = """{"$pkg":[$items]}"""
+        val parsed = parseCustomButtons(json)
+        assertEquals(50, parsed[pkg]!!.size)
+    }
+
     @Test fun `parseCustomButtons returns empty map on corrupt JSON`() {
         val result = parseCustomButtons("not valid json {{{{")
         assertTrue(result.isEmpty())

@@ -55,8 +55,7 @@ class SkipAccessibilityService : AccessibilityService() {
     @Volatile
     private var lastDiscoveryUptimeMs = 0L
 
-    @Volatile
-    private var lastTeachSweepUptimeMs = 0L
+    @Volatile private var lastTeachSweepUptimeMs = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()

@@ -159,6 +159,30 @@ class TaughtAppPortTest {
     }
 
     @Test
+    fun `imported button with risky name arrives disabled even when file says enabled true`() {
+        val json = """
+            {"skipperkitTaughtApp":2,"packageName":"com.example.player","displayName":"X",
+             "buttons":[],
+             "customButtons":[{"name":"Confirm purchase","viewId":"com.example.player:id/confirm","enabled":true}]}
+        """.trimIndent()
+        val shared = TaughtAppPort.parse(json)!!
+        val btn = shared.customButtons.single()
+        assertEquals(false, btn.enabled)
+    }
+
+    @Test
+    fun `imported benign button honors the file enabled flag`() {
+        val json = """
+            {"skipperkitTaughtApp":2,"packageName":"com.example.player","displayName":"X",
+             "buttons":[],
+             "customButtons":[{"name":"Dismiss Rating","viewId":"com.example.player:id/dismiss","enabled":true}]}
+        """.trimIndent()
+        val shared = TaughtAppPort.parse(json)!!
+        val btn = shared.customButtons.single()
+        assertEquals(true, btn.enabled)
+    }
+
+    @Test
     fun `more than 20 custom buttons are capped`() {
         val items = (0 until 30).joinToString(",") {
             """{"name":"Btn$it","viewId":"com.example.player:id/btn$it","enabled":true}"""

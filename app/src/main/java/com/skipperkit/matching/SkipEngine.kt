@@ -15,6 +15,8 @@ class SkipEngine(
     private val clock: () -> Long,
 ) {
 
+    // Debounce is per-package and shared across ALL targets (streaming + custom): if two different
+    // configured buttons are visible within the window, only the first match is tapped.
     private val lastActionUptimeByPackage = HashMap<String, Long>()
 
     sealed interface Result {

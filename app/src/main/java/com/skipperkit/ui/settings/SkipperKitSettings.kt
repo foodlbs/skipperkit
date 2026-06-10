@@ -979,7 +979,11 @@ fun TeachNameDialog(
     val cs = MaterialTheme.colorScheme
     var name by remember { mutableStateOf(candidate.text ?: "") }
     var riskChecked by remember { mutableStateOf(false) }
-    val isRisky = candidate.text?.let { RISKY_LABEL.containsMatchIn(it) } == true
+    val riskySource = listOfNotNull(
+        candidate.text,
+        candidate.viewId?.substringAfterLast('/')?.replace('_', ' '),
+    ).joinToString(" ")
+    val isRisky = RISKY_LABEL.containsMatchIn(riskySource)
     val canConfirm = name.isNotBlank() && (!isRisky || riskChecked)
     AlertDialog(
         onDismissRequest = onDismiss,

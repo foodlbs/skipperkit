@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object CustomButtonsRepository {
 
+    private const val MAX_PER_APP = 50
+
     private val _buttons = MutableStateFlow<Map<String, List<CustomButton>>>(emptyMap())
     val buttons: StateFlow<Map<String, List<CustomButton>>> = _buttons.asStateFlow()
 
@@ -21,11 +23,12 @@ object CustomButtonsRepository {
     fun forPackage(packageName: String): List<CustomButton> =
         _buttons.value[packageName] ?: emptyList()
 
-    /** Add a button for a package; no-op if a button with the same [CustomButton.key] already exists. */
+    /** Add a button for a package; no-op if a button with the same [CustomButton.key] already exists or the per-app cap is reached. */
     @Synchronized
     fun add(packageName: String, button: CustomButton) {
         val existing = _buttons.value[packageName] ?: emptyList()
         if (existing.any { it.key == button.key }) return
+        if (existing.size >= MAX_PER_APP) return
         _buttons.value = _buttons.value + (packageName to (existing + button))
         propagate()
     }

@@ -1,5 +1,6 @@
 package com.skipperkit.teach
 
+import com.skipperkit.config.ConfigRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,9 +41,11 @@ object TeachModeRepository {
     /** The set of keys already in [_candidates] for O(1) dedupe. */
     private val seenKeys = HashSet<String>()
 
-    /** Start a teach session for [packageName]. Clears any previous session. */
+    /** Start a teach session for [packageName]. Clears any previous session.
+     *  Returns without arming when the package has no config entry. */
     @Synchronized
     fun arm(packageName: String) {
+        if (ConfigRepository.forPackage(packageName) == null) return
         armedAt = clock()
         _armedPackage.value = packageName
         _candidates.value = emptyList()
@@ -55,6 +58,12 @@ object TeachModeRepository {
         _armedPackage.value = null
         _candidates.value = emptyList()
         seenKeys.clear()
+    }
+
+    /** Disarm if the teach window has lapsed; safe to call from the UI. */
+    @Synchronized
+    fun expireIfStale() {
+        if (armedPackage.value != null && clock() - armedAt > AUTO_DISARM_MS) disarm()
     }
 
     /**
