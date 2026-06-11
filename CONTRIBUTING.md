@@ -54,7 +54,27 @@ tag `SkipperKitInspector` — that's how each app's stable identifiers were capt
 4. Add a test and verify on device.
 
 Note: end users can already add unsupported apps at runtime via **Settings → Add an
-app** (on-device discovery). Code changes are for *built-in* support or engine fixes.
+app** (on-device discovery) and can teach arbitrary buttons via the per-app
+**Teach** action. Code changes are for *built-in* support or engine fixes.
+
+### Sharing fixes back upstream
+
+There are two paths a discovered or taught button can travel:
+
+1. **Manual PR** to [skipperkit-config](https://github.com/foodlbs/skipperkit-config) —
+   what this guide describes. Use this for engine-level work, hand-curated entries,
+   or anything the automated path rejects.
+2. **In-app one-tap contribution** — Settings → an app card's **Contribute**, or
+   **Contribute all** beside the Apps header. The app posts a v2 JSON payload
+   (skip buttons + named custom buttons) to a small ingestion service that opens
+   a PR here automatically. The same human review applies.
+
+   The service applies a deliberately over-broad denylist
+   (`pay|buy|purchase|order|confirm|subscribe|delete|remove|send|transfer|checkout|accept|agree|allow|authorize|proceed|enable|grant|approve|continue`)
+   to custom-button names, labels, and view-id tails. Legit names it blocks
+   (e.g. "Continue watching") are the case for the manual path. Custom buttons
+   that make it through arrive in PRs with `"enabled": false` — the maintainer
+   flips the flag in review as a deliberate editorial act.
 
 ### Most-wanted: verify a label-only app
 
